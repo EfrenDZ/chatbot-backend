@@ -3,10 +3,10 @@ WORKDIR /app
 
 COPY package.json ./
 COPY prisma ./prisma
-RUN corepack enable pnpm && pnpm install && npx prisma generate
+RUN npm install && npx prisma generate
 
 COPY . .
-RUN pnpm build
+RUN npm run build
 
 EXPOSE 3000
 ENV NODE_ENV=production
