@@ -86,4 +86,32 @@ export class ChatwootService {
       console.error(`[ChatwootService] Excepción en handoff:`, error);
     }
   }
+
+  static async resolveConversation(
+    apiUrl: string,
+    accessToken: string,
+    accountId: number,
+    conversationId: number
+  ): Promise<void> {
+    const url = `${apiUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/toggle_status`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api_access_token': accessToken,
+        },
+        body: JSON.stringify({
+          status: 'resolved',
+        }),
+      });
+
+      if (!response.ok) {
+        console.error(`[ChatwootService] Error resolviendo conv: ${await response.text()}`);
+      }
+    } catch (error) {
+      console.error(`[ChatwootService] Excepción en resolve:`, error);
+    }
+  }
 }

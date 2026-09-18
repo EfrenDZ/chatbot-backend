@@ -427,7 +427,9 @@ export class BotEngine {
 
   private static buildSystemPrompt(config: any): string {
     if (config.aiPromptMode === 'FREE') {
-      return config.systemPrompt || '';
+      let base = config.systemPrompt || '';
+      base += '\n\n[NOTA DE SISTEMA]: Si la conversación termina o el usuario se despide, incluye la palabra exacta [RESOLVER] al final de tu respuesta para auto-cerrar el chat.';
+      return base;
     }
 
     const knowledge = config.aiKnowledge as any || {};
@@ -466,7 +468,7 @@ export class BotEngine {
       promptParts.push(`CONTEXTO ADICIONAL / NOTAS EXTRA:\n${knowledge.extraContext}`);
     }
 
-    promptParts.push(`INSTRUCCIONES GENERALES:\nBásate estrictamente en la información proporcionada arriba. Si el usuario pregunta algo que no está en tu conocimiento o catálogo, indícale amablemente que no tienes esa información y ofrécele transferencia a un humano si es necesario.`);
+    promptParts.push(`INSTRUCCIONES GENERALES:\nBásate estrictamente en la información proporcionada arriba. Si el usuario pregunta algo que no está en tu conocimiento o catálogo, indícale amablemente que no tienes esa información y ofrécele transferencia a un humano.\n\nINSTRUCCIÓN DE AUTO-CIERRE:\nSi el usuario se despide explícitamente (ej. "gracias adios", "eso es todo"), despídete de él de forma cordial Y OBLIGATORIAMENTE incluye la palabra exacta [RESOLVER] al final de tu respuesta secreta. Esto activará el sistema para cerrar el chat.`);
 
     return promptParts.join('\n\n------------------------\n\n');
   }
@@ -517,12 +519,18 @@ export class BotEngine {
     }
 
     // 5. Llamar a la IA
-    const aiReply = await AiService.getReply(
+    let aiReply = await AiService.getReply(
       config.aiProvider,
       config.aiModel,
       finalSystemPrompt,
       history
     );
+
+    let isResolvedByAi = false;
+    if (aiReply.includes('[RESOLVER]')) {
+      isResolvedByAi = true;
+      aiReply = aiReply.replace(/\[RESOLVER\]/g, '').trim();
+    }
 
     // 6. Guardar respuesta en BD y enviarla a Chatwoot
     await prisma.messageLog.create({
