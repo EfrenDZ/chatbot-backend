@@ -428,7 +428,7 @@ export class BotEngine {
   private static buildSystemPrompt(config: any): string {
     if (config.aiPromptMode === 'FREE') {
       let base = config.systemPrompt || '';
-      base += '\n\n[INSTRUCCIÓN CRÍTICA]: Si el usuario se despide o termina la conversación, DEBES escribir la etiqueta secreta [RESOLVER] al final de tu mensaje. Ejemplo: \"Adiós! [RESOLVER]\"';
+      base += '\n\n[INSTRUCCIÓN CRÍTICA]: Si el usuario dice \"gracias\", primero pregúntale si necesita algo más. SOLO si dice que NO o se despide definitivamente, DEBES escribir la etiqueta secreta [RESOLVER] al final de tu mensaje. Ejemplo: \"Adiós! [RESOLVER]\"';
       return base;
     }
 
