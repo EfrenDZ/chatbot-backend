@@ -29,8 +29,62 @@ export class BotEngine {
     // 2. Obtener o crear la sesión de esta conversación
     const [session, isNew] = await this.getOrCreateSession(account.id, cwConversation.id, sender.phone_number || sender.email);
 
-    // Si un humano ya tomó el control, el bot hace silencio absoluto.
+
+    // Si la sesión expiró por inactividad, reiniciarla pasivamente
+    const hoursInactive = (Date.now() - session.updatedAt.getTime()) / (1000 * 60 * 60);
+    const timeoutHours = account.botConfig.sessionTimeoutHours || 24;
+    
+    if (hoursInactive > timeoutHours) {
+      console.log(`[BotEngine] Sesión ${session.id} expirada (>${timeoutHours}h). Reiniciando.`);
+      await this.resetSession(session.id, account.botConfig);
+      // Actualizamos estado en memoria para que se comporte como nueva si estaba en otro nodo
+      session.currentNodeId = (account.botConfig.flowGraph as any).rootNodeId;
+      session.status = 'BOT_HANDLING';
+      // Refrescamos en BD
+      await prisma.conversationSession.update({
+        where: { id: session.id },
+        data: { status: 'BOT_HANDLING' }
+      });
+      // Importante: Tratamos como nueva para que lance mensaje de bienvenida y nodo raíz
+      if (account.botConfig.welcomeMessage && account.chatwootAccessToken) {
+        await ChatwootService.sendMessage(
+          account.chatwootApiUrl,
+          account.chatwootAccessToken,
+          account.chatwootAccountId,
+          cwConversation.id,
+          account.botConfig.welcomeMessage
+        );
+      }
+      await this.sendCurrentNode(account, account.botConfig, session.id, cwConversation.id);
+      return;
+    }
+
+    // Si un humano ya tomó el control (y no expiró), el bot hace silencio absoluto.
+
+
+    if (session.status === 'RESOLVED') {
+      console.log(`[BotEngine] Mensaje en sesión resuelta. Reactivando bot.`);
+      await this.resetSession(session.id, account.botConfig);
+      await prisma.conversationSession.update({
+        where: { id: session.id },
+        data: { status: 'BOT_HANDLING' }
+      });
+      
+      if (account.botConfig.welcomeMessage && account.chatwootAccessToken) {
+        await ChatwootService.sendMessage(
+          account.chatwootApiUrl,
+          account.chatwootAccessToken,
+          account.chatwootAccountId,
+          cwConversation.id,
+          account.botConfig.welcomeMessage
+        );
+      }
+      await this.sendCurrentNode(account, account.botConfig, session.id, cwConversation.id);
+      return;
+    }
+
     if (session.status !== 'BOT_HANDLING') {
+
       return;
     }
 

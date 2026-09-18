@@ -54,6 +54,7 @@ model BotConfig {
   resetKeywords          String[] @default(["menu", "inicio", "reiniciar", "empezar"]) @map("reset_keywords")
   handoffKeywords        String[] @default(["humano", "agente", "asesor", "persona"]) @map("handoff_keywords")
   maxConsecutiveErrors   Int      @default(2) @map("max_consecutive_errors")
+  sessionTimeoutHours    Int      @default(24) @map("session_timeout_hours")
   
   aiProvider             String   @default("openai") @map("ai_provider")
   aiModel                String   @default("gpt-4o-mini") @map("ai_model")
