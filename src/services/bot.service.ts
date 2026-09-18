@@ -7,6 +7,8 @@ const prisma = new PrismaClient();
 // Tipo extendido para incluir las relaciones
 type Account = PrismaAccount & { botConfig?: BotConfig | null };
 
+const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
 export class BotEngine {
   /**
    * Punto de entrada principal desde el Webhook
@@ -54,6 +56,7 @@ export class BotEngine {
           cwConversation.id,
           account.botConfig.welcomeMessage
         );
+        await delay(1000);
       }
       await this.sendCurrentNode(account, account.botConfig, session.id, cwConversation.id);
       return;
@@ -78,6 +81,7 @@ export class BotEngine {
           cwConversation.id,
           account.botConfig.welcomeMessage
         );
+        await delay(1000);
       }
       await this.sendCurrentNode(account, account.botConfig, session.id, cwConversation.id);
       return;
@@ -226,6 +230,7 @@ export class BotEngine {
           cwConvId,
           messages[i]
         );
+        await delay(1000);
       }
     }
 
