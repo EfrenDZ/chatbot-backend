@@ -13,7 +13,7 @@ export class BotEngine {
    */
   static async handleIncomingMessage(payload: any): Promise<void> {
     const { account: cwAccount, conversation: cwConversation, sender, content } = payload;
-    const userMessage = content.trim().toLowerCase();
+    const userMessage = (content || '').trim().toLowerCase();
 
     // 1. Validar que la cuenta exista en nuestro SaaS
     const account = await prisma.account.findUnique({
@@ -31,6 +31,20 @@ export class BotEngine {
 
     // Si un humano ya tomó el control, el bot hace silencio absoluto.
     if (session.status !== 'BOT_HANDLING') {
+      return;
+    }
+
+    // Rechazar archivos multimedia si los hay
+    if (payload.attachments && payload.attachments.length > 0) {
+      if (account.chatwootAccessToken) {
+        await ChatwootService.sendMessage(
+          account.chatwootApiUrl,
+          account.chatwootAccessToken,
+          account.chatwootAccountId,
+          cwConversation.id,
+          "Soy un asistente virtual y por el momento solo puedo procesar texto. Por favor, escríbeme tu consulta."
+        );
+      }
       return;
     }
 
