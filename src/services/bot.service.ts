@@ -144,9 +144,28 @@ export class BotEngine {
     const node = flowGraph.nodes.find((n: any) => n.id === nodeId);
     if (!node) return;
 
+    const messages: string[] = (node.messages && Array.isArray(node.messages) && node.messages.length > 0)
+      ? node.messages
+      : [node.text];
+
+    // Enviar todos los globos previos al último como mensajes de texto plano
+    for (let i = 0; i < messages.length - 1; i++) {
+      if (account.chatwootAccessToken) {
+        await ChatwootService.sendMessage(
+          account.chatwootApiUrl,
+          account.chatwootAccessToken,
+          account.chatwootAccountId,
+          cwConvId,
+          messages[i]
+        );
+      }
+    }
+
+    const finalMessageText = messages[messages.length - 1];
+
     // Si el nodo es de transferencia a humano (Handoff)
     if (node.type === 'HANDOFF') {
-      await this.executeHandoff(account, session!, cwConvId, node.text);
+      await this.executeHandoff(account, session!, cwConvId, finalMessageText);
       return;
     }
 
@@ -173,7 +192,7 @@ export class BotEngine {
             account.chatwootAccessToken,
             account.chatwootAccountId,
             cwConvId,
-            node.text,
+            finalMessageText,
             {
               contentType: 'input_select',
               contentAttributes: { items },
@@ -188,7 +207,7 @@ export class BotEngine {
           .map((opt: any, index: number) => `${index + 1}. ${opt.label}`)
           .join('\n');
         
-        const fullMessage = `${node.text}\n\n${optionsText}`;
+        const fullMessage = `${finalMessageText}\n\n${optionsText}`;
 
         if (account.chatwootAccessToken) {
           await ChatwootService.sendMessage(
@@ -209,7 +228,7 @@ export class BotEngine {
         account.chatwootAccessToken,
         account.chatwootAccountId,
         cwConvId,
-        node.text
+        finalMessageText
       );
     }
   }
