@@ -428,7 +428,7 @@ export class BotEngine {
   private static buildSystemPrompt(config: any): string {
     if (config.aiPromptMode === 'FREE') {
       let base = config.systemPrompt || '';
-      base += '\n\n[NOTA DE SISTEMA]: Si la conversación termina o el usuario se despide, incluye la palabra exacta [RESOLVER] al final de tu respuesta para auto-cerrar el chat.';
+      base += '\n\n[INSTRUCCIÓN CRÍTICA]: Si el usuario se despide o termina la conversación, DEBES escribir la etiqueta secreta [RESOLVER] al final de tu mensaje. Ejemplo: \"Adiós! [RESOLVER]\"';
       return base;
     }
 
@@ -527,9 +527,9 @@ export class BotEngine {
     );
 
     let isResolvedByAi = false;
-    if (aiReply.includes('[RESOLVER]')) {
+    if (/\[RESOLVER\]/i.test(aiReply) || /\[resolver\]/i.test(aiReply)) {
       isResolvedByAi = true;
-      aiReply = aiReply.replace(/\[RESOLVER\]/g, '').trim();
+      aiReply = aiReply.replace(/\[RESOLVER\]/gi, '').trim();
     }
 
     // 6. Guardar respuesta en BD y enviarla a Chatwoot
