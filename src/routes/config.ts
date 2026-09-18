@@ -23,6 +23,16 @@ configRouter.get('/:accountId', async (req, res) => {
           botConfig: {
             create: {
               botMode: 'HYBRID',
+              aiPromptMode: 'STRUCTURED',
+              aiKnowledge: {
+                businessName: '',
+                businessDescription: '',
+                tone: 'Profesional y amable',
+                rules: [],
+                faqs: [],
+                catalog: [],
+                branches: []
+              },
               systemPrompt: 'Eres un asistente cordial y profesional de atención al cliente.',
               welcomeMessage: '¡Hola! Bienvenido a nuestro canal de atención.',
               farewellMessage: 'Gracias por comunicarte con nosotros. ¡Hasta luego!',
@@ -93,6 +103,8 @@ configRouter.put('/:accountId', async (req, res) => {
 
     const botConfigUpdateData: any = {
       botMode: data.botMode,
+      aiPromptMode: data.aiPromptMode,
+      aiKnowledge: data.aiKnowledge,
       systemPrompt: data.systemPrompt,
       maxConsecutiveErrors: data.maxConsecutiveErrors,
       maxAiMessages: data.maxAiMessages,
