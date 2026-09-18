@@ -27,10 +27,25 @@ export class BotEngine {
     }
 
     // 2. Obtener o crear la sesión de esta conversación
-    const session = await this.getOrCreateSession(account.id, cwConversation.id, sender.phone_number || sender.email);
+    const [session, isNew] = await this.getOrCreateSession(account.id, cwConversation.id, sender.phone_number || sender.email);
 
     // Si un humano ya tomó el control, el bot hace silencio absoluto.
     if (session.status !== 'BOT_HANDLING') {
+      return;
+    }
+
+    // 2.5 Si es una nueva conversación, dar la bienvenida y mostrar el menú principal (ignorando el texto que usó para abrir el chat)
+    if (isNew) {
+      if (account.botConfig.welcomeMessage && account.chatwootAccessToken) {
+        await ChatwootService.sendMessage(
+          account.chatwootApiUrl,
+          account.chatwootAccessToken,
+          account.chatwootAccountId,
+          cwConversation.id,
+          account.botConfig.welcomeMessage
+        );
+      }
+      await this.sendCurrentNode(account, account.botConfig, session.id, cwConversation.id);
       return;
     }
 
@@ -57,14 +72,45 @@ export class BotEngine {
     }
   }
 
-  private static async getOrCreateSession(accountId: string, cwConvId: number, identifier: string): Promise<ConversationSession> {
-    const session = await prisma.conversationSession.findUnique({
+  static async handleConversationResolved(payload: any): Promise<void> {
+    const { account: cwAccount, id: cwConversationId } = payload;
+    
+    const account = await prisma.account.findUnique({
+      where: { chatwootAccountId: cwAccount.id },
+      include: { botConfig: true },
+    });
+
+    if (!account || !account.isActive || !account.botConfig) return;
+
+    // Send farewell message if configured
+    if (account.botConfig.farewellMessage && account.chatwootAccessToken) {
+      await ChatwootService.sendMessage(
+        account.chatwootApiUrl,
+        account.chatwootAccessToken,
+        account.chatwootAccountId,
+        cwConversationId,
+        account.botConfig.farewellMessage
+      );
+    }
+    
+    // Mark session as resolved in our DB
+    await prisma.conversationSession.updateMany({
+      where: { 
+        accountId: account.id,
+        chatwootConversationId: cwConversationId 
+      },
+      data: { status: 'RESOLVED' }
+    });
+  }
+
+  private static async getOrCreateSession(accountId: string, cwConvId: number, identifier: string): Promise<[ConversationSession, boolean]> {
+    let session = await prisma.conversationSession.findUnique({
       where: { unique_account_conversation: { accountId, chatwootConversationId: cwConvId } },
     });
 
-    if (session) return session;
+    if (session) return [session, false];
 
-    return prisma.conversationSession.create({
+    session = await prisma.conversationSession.create({
       data: {
         accountId,
         chatwootConversationId: cwConvId,
@@ -72,6 +118,8 @@ export class BotEngine {
         status: 'BOT_HANDLING',
       },
     });
+    
+    return [session, true];
   }
 
   private static async resetSession(sessionId: string, config: BotConfig) {

@@ -11,6 +11,15 @@ webhookRouter.post('/chatwoot', async (req: Request, res: Response) => {
   try {
     const payload = req.body;
     
+    if (payload.event === 'conversation_status_changed') {
+      if (payload.status === 'resolved') {
+        BotEngine.handleConversationResolved(payload).catch((err) => {
+          console.error('[Webhook Error - Resolved]', err);
+        });
+      }
+      return;
+    }
+
     // Solo procesar si es un mensaje creado
     if (payload.event !== 'message_created') return;
     

@@ -24,6 +24,8 @@ configRouter.get('/:accountId', async (req, res) => {
             create: {
               botMode: 'HYBRID',
               systemPrompt: 'Eres un asistente cordial y profesional de atención al cliente.',
+              welcomeMessage: '¡Hola! Bienvenido a nuestro canal de atención.',
+              farewellMessage: 'Gracias por comunicarte con nosotros. ¡Hasta luego!',
               fallbackMessage: 'No he entendido tu respuesta. Por favor escribe una opción válida o "Menú" para reiniciar.',
               handoffMessage: 'Te estoy transfiriendo con un asesor humano.',
               maxConsecutiveErrors: 2,
@@ -94,6 +96,8 @@ configRouter.put('/:accountId', async (req, res) => {
       systemPrompt: data.systemPrompt,
       maxConsecutiveErrors: data.maxConsecutiveErrors,
       maxAiMessages: data.maxAiMessages,
+      welcomeMessage: data.welcomeMessage,
+      farewellMessage: data.farewellMessage,
       fallbackMessage: data.fallbackMessage,
       handoffMessage: data.handoffMessage,
     };

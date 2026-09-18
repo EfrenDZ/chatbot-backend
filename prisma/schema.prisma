@@ -61,6 +61,8 @@ model BotConfig {
   maxAiMessages          Int      @default(8) @map("max_ai_messages")
   aiWrapUpMessages       Int      @default(2) @map("ai_wrap_up_messages")
   
+  welcomeMessage         String?  @map("welcome_message")
+  farewellMessage        String?  @map("farewell_message")
   fallbackMessage        String   @map("fallback_message")
   handoffMessage         String   @map("handoff_message")
   
