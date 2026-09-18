@@ -550,5 +550,16 @@ export class BotEngine {
         aiReply
       );
     }
+
+    if (isResolvedByAi && account.chatwootAccessToken) {
+      console.log(`[BotEngine] La IA decidió auto-resolver la sesión ${session.id}`);
+      await ChatwootService.resolveConversation(
+        account.chatwootApiUrl,
+        account.chatwootAccessToken,
+        account.chatwootAccountId,
+        cwConvId
+      );
+    }
   }
 }
+
