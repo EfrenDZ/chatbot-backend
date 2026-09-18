@@ -96,6 +96,12 @@ export class BotEngine {
     const node = flowGraph.nodes.find((n: any) => n.id === nodeId);
     if (!node) return;
 
+    // Si el nodo es de transferencia a humano (Handoff)
+    if (node.type === 'HANDOFF') {
+      await this.executeHandoff(account, session!, cwConvId, node.text);
+      return;
+    }
+
     let messageText = node.text;
 
     // Si es un menú, adjuntamos las opciones al texto
@@ -115,7 +121,7 @@ export class BotEngine {
     }
   }
 
-  private static async executeHandoff(account: Account, session: ConversationSession, cwConvId: number) {
+  private static async executeHandoff(account: Account, session: ConversationSession, cwConvId: number, customMessage?: string) {
     // 1. Marcar en BD
     await prisma.conversationSession.update({
       where: { id: session.id },
@@ -124,12 +130,13 @@ export class BotEngine {
 
     // 2. Avisar al usuario
     if (account.chatwootAccessToken) {
+      const message = (customMessage && customMessage.trim()) ? customMessage : account.botConfig!.handoffMessage;
       await ChatwootService.sendMessage(
         account.chatwootApiUrl,
         account.chatwootAccessToken,
         account.chatwootAccountId,
         cwConvId,
-        account.botConfig!.handoffMessage
+        message
       );
 
       // 3. Abrir la conversación en Chatwoot
