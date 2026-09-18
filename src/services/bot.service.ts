@@ -102,12 +102,57 @@ export class BotEngine {
       return;
     }
 
-    let messageText = node.text;
+    // Si es un menú con opciones
+    if (node.type === 'MENU' && node.options && node.options.length > 0) {
+      if (node.options.length <= 10) {
+        // Enviar como mensaje interactivo nativo (Botones si <= 3, Lista interactiva si <= 10)
+        // Meta WhatsApp: botones max 20 caracteres, lista max 24 caracteres.
+        const maxTitleLen = node.options.length <= 3 ? 20 : 24;
+        const items = node.options.map((opt: any, index: number) => {
+          let title = opt.label.trim();
+          if (title.length > maxTitleLen) {
+            title = title.substring(0, maxTitleLen);
+          }
+          return {
+            title,
+            value: (index + 1).toString(),
+          };
+        });
 
-    // Si es un menú, adjuntamos las opciones al texto
-    if (node.type === 'MENU' && node.options) {
-      const optionsText = node.options.map((opt: any) => opt.label).join('\n');
-      messageText += `\n\n${optionsText}`;
+        if (account.chatwootAccessToken) {
+          await ChatwootService.sendMessage(
+            account.chatwootApiUrl,
+            account.chatwootAccessToken,
+            account.chatwootAccountId,
+            cwConvId,
+            node.text,
+            {
+              contentType: 'input_select',
+              contentAttributes: { items },
+            }
+          );
+        }
+        return;
+      } else {
+        // Más de 10 opciones: WhatsApp no soporta listas de >10 items.
+        // Fallback a texto plano numerado legible.
+        const optionsText = node.options
+          .map((opt: any, index: number) => `${index + 1}. ${opt.label}`)
+          .join('\n');
+        
+        const fullMessage = `${node.text}\n\n${optionsText}`;
+
+        if (account.chatwootAccessToken) {
+          await ChatwootService.sendMessage(
+            account.chatwootApiUrl,
+            account.chatwootAccessToken,
+            account.chatwootAccountId,
+            cwConvId,
+            fullMessage
+          );
+        }
+        return;
+      }
     }
 
     if (account.chatwootAccessToken) {
@@ -116,7 +161,7 @@ export class BotEngine {
         account.chatwootAccessToken,
         account.chatwootAccountId,
         cwConvId,
-        messageText
+        node.text
       );
     }
   }
@@ -177,11 +222,30 @@ export class BotEngine {
     // Si no es un nodo tipo menú, o no se encontró, ignoramos
     if (!node || node.type !== 'MENU' || !node.options) return;
 
-    // Buscar si el usuario escribió el número de la opción o alguna palabra clave
+    const cleanUserMsg = userMessage.trim().toLowerCase();
+
+    // Buscar si el usuario escribió el número, el texto exacto, o hizo clic en un botón/lista
     const selectedOption = node.options.find((opt: any, index: number) => {
-      const isNumberMatch = userMessage === (index + 1).toString();
-      const isLabelMatch = opt.label.toLowerCase().includes(userMessage);
-      return isNumberMatch || isLabelMatch;
+      const optionIndexStr = (index + 1).toString();
+      const cleanLabel = opt.label.trim().toLowerCase();
+      // Remover prefijo numérico como "1. " o "1 - " si existe para comparar con el título limpio
+      const labelWithoutNumber = cleanLabel.replace(/^\d+[\.\-\)\s]+/, '').trim();
+
+      // 1. Coincidencia por número directo ("1", "1.")
+      const isNumberMatch = cleanUserMsg === optionIndexStr || cleanUserMsg === `${optionIndexStr}.`;
+      
+      // 2. Coincidencia exacta de etiqueta completa ("1. ver precios")
+      const isExactLabel = cleanLabel === cleanUserMsg;
+      
+      // 3. Coincidencia de texto sin el prefijo ("ver precios")
+      const isLabelWithoutNumber = labelWithoutNumber.length > 0 && (
+        labelWithoutNumber === cleanUserMsg || cleanUserMsg.includes(labelWithoutNumber) || labelWithoutNumber.includes(cleanUserMsg)
+      );
+
+      // 4. Coincidencia parcial (subcadena)
+      const isPartial = cleanLabel.includes(cleanUserMsg) || cleanUserMsg.includes(cleanLabel);
+
+      return isNumberMatch || isExactLabel || isLabelWithoutNumber || isPartial;
     });
 
     if (selectedOption) {

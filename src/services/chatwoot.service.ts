@@ -1,3 +1,10 @@
+export interface SendMessageOptions {
+  contentType?: 'text' | 'input_select';
+  contentAttributes?: {
+    items: Array<{ title: string; value: string }>;
+  };
+}
+
 export class ChatwootService {
   /**
    * Envía un mensaje desde el bot hacia el cliente en una conversación específica.
@@ -7,9 +14,24 @@ export class ChatwootService {
     accessToken: string,
     accountId: number,
     conversationId: number,
-    content: string
+    content: string,
+    options?: SendMessageOptions
   ): Promise<void> {
     const url = `${apiUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/messages`;
+
+    const body: any = {
+      content,
+      message_type: 'outgoing',
+      private: false,
+    };
+
+    if (options?.contentType) {
+      body.content_type = options.contentType;
+    }
+
+    if (options?.contentAttributes) {
+      body.content_attributes = options.contentAttributes;
+    }
 
     try {
       const response = await fetch(url, {
@@ -18,11 +40,7 @@ export class ChatwootService {
           'Content-Type': 'application/json',
           'api_access_token': accessToken,
         },
-        body: JSON.stringify({
-          content,
-          message_type: 'outgoing',
-          private: false,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
