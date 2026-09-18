@@ -61,7 +61,10 @@ configRouter.get('/:accountId', async (req, res) => {
       });
     }
 
-    res.json(account.botConfig);
+    res.json({
+      ...account.botConfig,
+      isActive: account.isActive
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error del servidor' });
@@ -79,20 +82,35 @@ configRouter.put('/:accountId', async (req, res) => {
       return res.status(404).json({ error: 'Cuenta no encontrada' });
     }
 
+    if (data.isActive !== undefined) {
+      await prisma.account.update({
+        where: { id: account.id },
+        data: { isActive: Boolean(data.isActive) }
+      });
+    }
+
+    const botConfigUpdateData: any = {
+      botMode: data.botMode,
+      systemPrompt: data.systemPrompt,
+      maxConsecutiveErrors: data.maxConsecutiveErrors,
+      maxAiMessages: data.maxAiMessages,
+      fallbackMessage: data.fallbackMessage,
+      handoffMessage: data.handoffMessage,
+    };
+
+    if (data.flowGraph !== undefined) {
+      botConfigUpdateData.flowGraph = data.flowGraph;
+    }
+
     const updatedConfig = await prisma.botConfig.update({
       where: { accountId: account.id },
-      data: {
-        botMode: data.botMode,
-        systemPrompt: data.systemPrompt,
-        maxConsecutiveErrors: data.maxConsecutiveErrors,
-        maxAiMessages: data.maxAiMessages,
-        fallbackMessage: data.fallbackMessage,
-        handoffMessage: data.handoffMessage,
-        // Si más adelante implementamos React Flow, aquí guardaríamos data.flowGraph
-      }
+      data: botConfigUpdateData
     });
 
-    res.json(updatedConfig);
+    res.json({
+      ...updatedConfig,
+      isActive: data.isActive !== undefined ? Boolean(data.isActive) : account.isActive
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error actualizando configuración' });
