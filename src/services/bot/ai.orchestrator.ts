@@ -7,9 +7,7 @@ import { FlowRouter } from './flow.router';
 export class AiOrchestrator {
   static buildSystemPrompt(config: any): string {
     if (config.aiPromptMode === 'FREE') {
-      let base = config.systemPrompt || '';
-      base += '\n\n[INSTRUCCIÓN CRÍTICA]: Si el usuario dice "gracias", primero pregúntale si necesita algo más. SOLO si dice que NO o se despide definitivamente, DEBES escribir la etiqueta secreta [RESOLVER] al final de tu mensaje. Ejemplo: "Adiós! [RESOLVER]"';
-      return base;
+      return config.systemPrompt || '';
     }
 
     const knowledge = config.aiKnowledge as any || {};
@@ -48,7 +46,7 @@ export class AiOrchestrator {
       promptParts.push(`CONTEXTO ADICIONAL / NOTAS EXTRA:\n${knowledge.extraContext}`);
     }
 
-    promptParts.push(`INSTRUCCIONES GENERALES:\nBásate estrictamente en la información proporcionada arriba. Si el usuario pregunta algo que no está en tu conocimiento o catálogo, indícale amablemente que no tienes esa información y ofrécele transferencia a un humano.\n\nINSTRUCCIÓN DE AUTO-CIERRE:\nSi el usuario se despide explícitamente (ej. "gracias adios", "eso es todo"), despídete de él de forma cordial Y OBLIGATORIAMENTE incluye la palabra exacta [RESOLVER] al final de tu respuesta secreta. Esto activará el sistema para cerrar el chat.`);
+    promptParts.push(`INSTRUCCIONES GENERALES:\nBásate estrictamente en la información proporcionada arriba. Si el usuario pregunta algo que no está en tu conocimiento o catálogo, indícale amablemente que no tienes esa información y utiliza la herramienta "transferir_a_humano".\n\nINSTRUCCIÓN DE AUTO-CIERRE:\nSi el usuario se despide explícitamente (ej. "gracias adios", "eso es todo"), despídete de él de forma cordial y OBLIGATORIAMENTE utiliza la herramienta "resolver_conversacion" para cerrar el chat.`);
 
     return promptParts.join('\n\n------------------------\n\n');
   }
@@ -86,63 +84,58 @@ export class AiOrchestrator {
     const messagesLeft = config.maxAiMessages - newAiCount;
     
     if (messagesLeft <= config.aiWrapUpMessages) {
-      finalSystemPrompt += `\n\n[IMPORTANTE]: Te quedan ${messagesLeft} mensajes con el usuario antes de que el sistema fuerce una transferencia. Intenta cerrar la duda ahora o indícale amablemente que lo vas a transferir a un asesor humano.`;
+      finalSystemPrompt += `\n\n[IMPORTANTE]: Te quedan ${messagesLeft} mensajes con el usuario antes de que el sistema fuerce una transferencia. Intenta cerrar la duda ahora o indícale amablemente que lo vas a transferir a un asesor humano utilizando la herramienta correspondiente.`;
     }
 
-    let aiReply = await AiService.getReply(
+    const aiResult = await AiService.getReply(
       config.aiProvider,
       config.aiModel,
       finalSystemPrompt,
       history
     );
 
-    if (aiReply.includes('[ERROR_IA]')) {
+    if (aiResult.text.includes('[ERROR_IA]')) {
       console.log(`[BotEngine] Falla en IA detectada en la sesión ${session.id}.`);
       const emergencyMsg = "En este momento te comunicaré con uno de nuestros asesores para que te atienda personalmente. Dame un momento.";
       await FlowRouter.executeHandoff(account, session, cwConvId, emergencyMsg);
       return;
     }
 
-    let isResolvedByAi = false;
-    let isHandoffByAi = false;
+    // Si la IA responde texto, lo guardamos y enviamos
+    if (aiResult.text.trim().length > 0) {
+      await prisma.messageLog.create({
+        data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: aiResult.text }
+      });
 
-    if (/\[RESOLVER\]/i.test(aiReply)) {
-      isResolvedByAi = true;
-      aiReply = aiReply.replace(/\[RESOLVER\]/gi, '').trim();
+      if (account.chatwootAccessToken) {
+        await ChatwootService.sendMessage(
+          account.chatwootApiUrl,
+          account.chatwootAccessToken,
+          account.chatwootAccountId,
+          cwConvId,
+          aiResult.text
+        );
+      }
     }
-    
-    if (/\[HUMANO\]/i.test(aiReply)) {
-      isHandoffByAi = true;
-      aiReply = aiReply.replace(/\[HUMANO\]/gi, '').trim();
-    }
 
-    await prisma.messageLog.create({
-      data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: aiReply }
-    });
-
-    if (isHandoffByAi) {
-      await FlowRouter.executeHandoff(account, session, cwConvId, aiReply);
+    if (aiResult.isHandoff) {
+      console.log(`[BotEngine] La IA decidió transferir a humano (Tool Call) en sesión ${session.id}`);
+      // Ejecutamos handoff pero SIN el mensaje custom de la IA, a menos que queramos usar el texto que haya dicho
+      // Si la IA ya dijo algo ("Te transfiero"), se envió arriba. Si no dijo nada, pasamos undefined para que use el default.
+      const handoffMsg = aiResult.text.trim().length > 0 ? aiResult.text : undefined;
+      await FlowRouter.executeHandoff(account, session, cwConvId, handoffMsg);
       return;
     }
 
-    if (account.chatwootAccessToken) {
-      await ChatwootService.sendMessage(
-        account.chatwootApiUrl,
-        account.chatwootAccessToken,
-        account.chatwootAccountId,
-        cwConvId,
-        aiReply
-      );
-    }
-
-    if (isResolvedByAi && account.chatwootAccessToken) {
-      console.log(`[BotEngine] La IA decidió auto-resolver la sesión ${session.id}`);
+    if (aiResult.isResolved && account.chatwootAccessToken) {
+      console.log(`[BotEngine] La IA decidió auto-resolver (Tool Call) en sesión ${session.id}`);
       await ChatwootService.resolveConversation(
         account.chatwootApiUrl,
         account.chatwootAccessToken,
         account.chatwootAccountId,
         cwConvId
       );
+      await prisma.conversationSession.update({ where: { id: session.id }, data: { status: 'RESOLVED' } });
     }
   }
 }
