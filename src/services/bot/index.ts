@@ -80,6 +80,17 @@ export class BotEngine {
       return;
     }
 
+
+    const flowGraph = account.botConfig.flowGraph as any;
+    const currentNodeId = session.currentNodeId || flowGraph.rootNodeId;
+    const currentNode = flowGraph.nodes?.find((n: any) => n.id === currentNodeId);
+
+    // Si estamos en un nodo INPUT, procesamos la variable sin importar el modo
+    if (currentNode && currentNode.type === 'INPUT') {
+      await FlowRouter.tryProcessInputNode(account, session, cwConversation.id, content, currentNode);
+      return;
+    }
+
     if (account.botConfig.botMode === 'AI') {
       await AiOrchestrator.processAiMessage(account, session, cwConversation.id, content);
     } else if (account.botConfig.botMode === 'OPTIONS') {
@@ -88,9 +99,6 @@ export class BotEngine {
       const wasValidOption = await FlowRouter.tryProcessMenuOption(account, session, cwConversation.id, userMessage);
       if (!wasValidOption) {
         if (session.consecutiveErrors >= account.botConfig.maxConsecutiveErrors) {
-          // Ya superó el límite de errores, la IA toma el control permanentemente
-          // NO reseteamos consecutiveErrors a 0 aquí, porque si lo hacemos, 
-          // el siguiente mensaje lo regresará al menú estricto.
           await AiOrchestrator.processAiMessage(account, session, cwConversation.id, content);
         } else {
           await FlowRouter.processMenuError(account, session, cwConversation.id);

@@ -59,6 +59,61 @@ export class FlowRouter {
       return;
     }
 
+    
+    if (node.type === 'WEBHOOK') {
+      try {
+        const metadata = typeof session!.sessionMetadata === 'string' ? JSON.parse(session!.sessionMetadata) : (session!.sessionMetadata || {});
+        
+        // Ejecutar petición HTTP
+        const response = await fetch(node.url, {
+          method: node.method || 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(metadata)
+        });
+
+        if (response.ok) {
+          await prisma.conversationSession.update({
+            where: { id: sessionId },
+            data: { currentNodeId: node.successNodeId, consecutiveErrors: 0 }
+          });
+        } else {
+          await prisma.conversationSession.update({
+            where: { id: sessionId },
+            data: { currentNodeId: node.errorNodeId, consecutiveErrors: 0 }
+          });
+        }
+      } catch (err) {
+        console.error('[FlowRouter] Webhook error:', err);
+        await prisma.conversationSession.update({
+          where: { id: sessionId },
+          data: { currentNodeId: node.errorNodeId, consecutiveErrors: 0 }
+        });
+      }
+      
+      // Llamada recursiva para procesar el nodo destino (success o error)
+      const newSession = await prisma.conversationSession.findUnique({ where: { id: sessionId } });
+      if (newSession) {
+        await this.sendCurrentNode(account, config, newSession.id, cwConvId);
+      }
+      return;
+    }
+
+    if (node.type === 'INPUT') {
+      // Los nodos de INPUT simplemente mandan su mensaje y esperan a que el usuario escriba
+      // No tienen opciones
+      if (account.chatwootAccessToken) {
+        await ChatwootService.sendMessage(
+          account.chatwootApiUrl,
+          account.chatwootAccessToken,
+          account.chatwootAccountId,
+          cwConvId,
+          finalMessageText
+        );
+        await delay(2000);
+      }
+      return;
+    }
+
     if (node.type === 'MENU' && node.options && node.options.length > 0) {
       if (node.options.length <= 10) {
         const maxTitleLen = node.options.length <= 3 ? 20 : 24;
@@ -196,4 +251,27 @@ export class FlowRouter {
       await this.sendCurrentNode(account, config, session.id, cwConvId);
     }
   }
+
+  static async tryProcessInputNode(account: Account, session: ConversationSession, cwConvId: number, userMessage: string, node: any): Promise<boolean> {
+    if (node.type !== 'INPUT') return false;
+    
+    const varName = node.variableName || 'input';
+    let metadata = typeof session!.sessionMetadata === 'string' ? JSON.parse(session!.sessionMetadata) : (session!.sessionMetadata || {});
+    
+    // Guardar la variable
+    metadata[varName] = userMessage.trim();
+
+    await prisma.conversationSession.update({
+      where: { id: session.id },
+      data: {
+        currentNodeId: node.targetNodeId,
+        consecutiveErrors: 0,
+        sessionMetadata: metadata
+      },
+    });
+
+    await this.sendCurrentNode(account, account.botConfig!, session.id, cwConvId);
+    return true;
+  }
+
 }
