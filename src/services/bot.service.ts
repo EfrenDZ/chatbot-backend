@@ -568,7 +568,7 @@ export class BotEngine {
     // Fallback de Emergencia si la IA se cae o llega al límite de cuota
     if (aiReply.includes('[ERROR_IA]')) {
       console.log(`[BotEngine] Falla en IA detectada en la sesión ${session.id}. Ejecutando transferencia de emergencia.`);
-      const emergencyMsg = "Estoy experimentando dificultades técnicas en este momento. Te voy a transferir con un asesor humano para que te atienda inmediatamente.";
+      const emergencyMsg = "En este momento te comunicaré con uno de nuestros asesores para que te atienda personalmente. Dame un momento.";
       await this.executeHandoff(account, session, cwConvId, emergencyMsg);
       return;
     }
