@@ -56,6 +56,16 @@ router.post('/login', async (req, res) => {
 
 // Endpoint especial para auto-login desde el Iframe de Chatwoot
 router.post('/iframe-bypass', (req, res) => {
+  const origin = req.get('origin') || '';
+  const referer = req.get('referer') || '';
+
+  const isTrusted = origin.includes('chat.zabotek.com') || referer.includes('chat.zabotek.com') || origin.includes('localhost');
+
+  if (!isTrusted) {
+    console.warn(`[Security] Bloqueado intento de bypass desde Origin: ${origin}, Referer: ${referer}`);
+    return res.status(403).json({ error: 'Acceso denegado. Origen no confiable.' });
+  }
+
   const { accountId } = req.body;
   if (!accountId) return res.status(400).json({ error: 'Missing accountId' });
 
