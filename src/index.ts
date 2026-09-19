@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { webhookRouter } from './routes/webhook';
 import { configRouter } from './routes/config';
+import authRouter from './routes/auth';
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ app.get('/', (req, res) => {
 
 // API Routes
 app.use('/webhook', webhookRouter);
+app.use('/api/auth', authRouter);
 app.use('/api/config', configRouter);
 
 app.listen(PORT, () => {
