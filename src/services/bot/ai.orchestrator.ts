@@ -46,7 +46,7 @@ export class AiOrchestrator {
       promptParts.push(`CONTEXTO ADICIONAL / NOTAS EXTRA:\n${knowledge.extraContext}`);
     }
 
-    promptParts.push(`INSTRUCCIONES GENERALES:\nBásate estrictamente en la información proporcionada arriba. Si el usuario pregunta algo que no está en tu conocimiento o catálogo, indícale amablemente que no tienes esa información y utiliza la herramienta "transferir_a_humano".\n\nINSTRUCCIÓN DE AUTO-CIERRE:\nSi el usuario se despide explícitamente (ej. "gracias adios", "eso es todo"), despídete de él de forma cordial y OBLIGATORIAMENTE utiliza la herramienta "resolver_conversacion" para cerrar el chat.`);
+    promptParts.push(`INSTRUCCIONES GENERALES:\nBásate estrictamente en la información proporcionada arriba. Si el usuario pregunta algo que no está en tu conocimiento o catálogo, indícale amablemente que no tienes esa información y PREGÚNTALE si desea ser atendido por un asesor humano. Utiliza la herramienta "transferir_a_humano" ÚNICAMENTE si el usuario acepta tu oferta de transferencia, o si el usuario solicita un humano directamente desde el principio.\n\nINSTRUCCIÓN DE AUTO-CIERRE:\nSi el usuario se despide explícitamente (ej. "gracias adios", "eso es todo"), despídete de él de forma cordial y OBLIGATORIAMENTE utiliza la herramienta "resolver_conversacion" para cerrar el chat.`);
 
     return promptParts.join('\n\n------------------------\n\n');
   }
