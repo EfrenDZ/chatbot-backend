@@ -56,7 +56,7 @@ export class BotEngine {
           cwConversation.id,
           account.botConfig.welcomeMessage
         );
-        await delay(1000);
+        await delay(2500);
       }
       await this.sendCurrentNode(account, account.botConfig, session.id, cwConversation.id);
       return;
@@ -81,7 +81,7 @@ export class BotEngine {
           cwConversation.id,
           account.botConfig.welcomeMessage
         );
-        await delay(1000);
+        await delay(2500);
       }
       await this.sendCurrentNode(account, account.botConfig, session.id, cwConversation.id);
       return;
@@ -230,7 +230,7 @@ export class BotEngine {
           cwConvId,
           messages[i]
         );
-        await delay(1000);
+        await delay(2500);
       }
     }
 
