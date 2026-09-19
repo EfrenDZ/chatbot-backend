@@ -51,7 +51,7 @@ export class AiService {
       return text;
     } catch (error) {
       console.error('[AiService] Error generando texto:', error);
-      return "Hubo un error de conexión con la inteligencia artificial.";
+      return "[ERROR_IA]";
     }
   }
 }
