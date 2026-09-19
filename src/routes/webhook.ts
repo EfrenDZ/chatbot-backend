@@ -1,6 +1,26 @@
 import { Router, Request, Response } from 'express';
 import { BotEngine } from '../services/bot.service';
 
+// --- Cola de Concurrencia en Memoria ---
+// Garantiza que los mensajes de la misma conversación se procesen uno tras otro
+// para evitar race conditions (muy común si el usuario manda varios mensajes rápidos en WhatsApp).
+const conversationQueues = new Map<number, Promise<void>>();
+
+function enqueueConversationTask(conversationId: number, task: () => Promise<void>) {
+  const prevPromise = conversationQueues.get(conversationId) || Promise.resolve();
+  const nextPromise = prevPromise.then(() => task()).catch(err => {
+    console.error(`[Webhook Queue] Error en conversación ${conversationId}:`, err);
+  });
+  
+  conversationQueues.set(conversationId, nextPromise);
+  
+  nextPromise.finally(() => {
+    if (conversationQueues.get(conversationId) === nextPromise) {
+      conversationQueues.delete(conversationId);
+    }
+  });
+}
+
 export const webhookRouter = Router();
 
 // Chatwoot Webhook Endpoint
@@ -32,10 +52,14 @@ webhookRouter.post('/chatwoot', async (req: Request, res: Response) => {
     console.log(`[Webhook] Mensaje entrante - Cuenta: ${account.id}, Conversación: ${conversation.id}`);
     console.log(`[Mensaje] ${sender.name}: ${content}`);
 
-    // Delegar todo el trabajo pesado al motor en segundo plano
-    // No usamos 'await' para no bloquear la respuesta HTTP 200 de Chatwoot
-    BotEngine.handleIncomingMessage(payload).catch((err) => {
-      console.error('[Webhook Error]', err);
+    // Delegar a la cola secuencial (background) para evitar race conditions
+    // No usamos 'await' principal para no bloquear la respuesta HTTP 200 de Chatwoot
+    enqueueConversationTask(conversation.id, async () => {
+      try {
+        await BotEngine.handleIncomingMessage(payload);
+      } catch (err) {
+        console.error('[Webhook Error en Cola]', err);
+      }
     });
     
   } catch (error) {
