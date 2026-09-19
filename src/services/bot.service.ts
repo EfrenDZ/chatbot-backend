@@ -236,6 +236,29 @@ export class BotEngine {
 
     const finalMessageText = messages[messages.length - 1];
 
+    // Nuevos tipos de nodos terminales
+    if (node.type === 'RESTART') {
+      await this.resetSession(sessionId, config);
+      const newSession = await prisma.conversationSession.findUnique({ where: { id: sessionId } });
+      if (newSession) {
+        await this.sendCurrentNode(account, config, newSession.id, cwConvId);
+      }
+      return;
+    }
+
+    if (node.type === 'RESOLVE') {
+      if (account.chatwootAccessToken) {
+        await ChatwootService.resolveConversation(
+          account.chatwootApiUrl,
+          account.chatwootAccessToken,
+          account.chatwootAccountId,
+          cwConvId
+        );
+      }
+      await prisma.conversationSession.update({ where: { id: sessionId }, data: { status: 'RESOLVED' } });
+      return;
+    }
+
     // Si el nodo es de transferencia a humano (Handoff)
     if (node.type === 'HANDOFF') {
       await this.executeHandoff(account, session!, cwConvId, finalMessageText);
