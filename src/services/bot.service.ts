@@ -550,9 +550,16 @@ export class BotEngine {
     );
 
     let isResolvedByAi = false;
+    let isHandoffByAi = false;
+
     if (/\[RESOLVER\]/i.test(aiReply) || /\[resolver\]/i.test(aiReply)) {
       isResolvedByAi = true;
       aiReply = aiReply.replace(/\[RESOLVER\]/gi, '').trim();
+    }
+    
+    if (/\[HUMANO\]/i.test(aiReply) || /\[humano\]/i.test(aiReply)) {
+      isHandoffByAi = true;
+      aiReply = aiReply.replace(/\[HUMANO\]/gi, '').trim();
     }
 
     // 6. Guardar respuesta en BD y enviarla a Chatwoot
@@ -563,6 +570,12 @@ export class BotEngine {
         content: aiReply,
       }
     });
+
+    if (isHandoffByAi) {
+      // Si la IA decide transferir, usamos la respuesta de la IA como mensaje de handoff
+      await this.executeHandoff(account, session, cwConvId, aiReply);
+      return;
+    }
 
     if (account.chatwootAccessToken) {
       await ChatwootService.sendMessage(
