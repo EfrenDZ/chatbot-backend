@@ -306,6 +306,9 @@ export class BotEngine {
               contentAttributes: { items },
             }
           );
+          // Retraso crucial: damos tiempo a WhatsApp de procesar el mensaje interactivo
+          // antes de que la cola (queue) libere el siguiente mensaje.
+          await delay(2500);
         }
         return;
       } else {
@@ -461,6 +464,7 @@ export class BotEngine {
         cwConvId,
         config.fallbackMessage
       );
+      await delay(2000); // Dar espacio antes de reenviar el menú
       await this.sendCurrentNode(account, config, session.id, cwConvId);
     }
   
