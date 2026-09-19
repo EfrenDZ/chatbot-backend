@@ -151,12 +151,24 @@ export class BotEngine {
     }
 
     // 5. Enrutador Principal: ¿Está en modo Opciones o en modo IA?
-    const isAiModeActive = this.shouldUseAI(session, account.botConfig);
-
-    if (isAiModeActive) {
+    if (account.botConfig.botMode === 'AI') {
       await this.processAiMessage(account, session, cwConversation.id, content);
-    } else {
+    } else if (account.botConfig.botMode === 'OPTIONS') {
       await this.processMenuOption(account, session, cwConversation.id, userMessage);
+    } else {
+      // MODO HÍBRIDO: Primero intentamos ver si el usuario tecleó una opción de menú válida
+      const wasValidOption = await this.tryProcessMenuOption(account, session, cwConversation.id, userMessage);
+      
+      if (!wasValidOption) {
+        // Si no era una opción válida, verificamos si ya superó el límite de errores
+        if (session.consecutiveErrors >= account.botConfig.maxConsecutiveErrors) {
+          // Entra la IA al rescate
+          await this.processAiMessage(account, session, cwConversation.id, content);
+        } else {
+          // Si aún le quedan intentos, procesamos el error de menú normalmente
+          await this.processMenuError(account, session, cwConversation.id);
+        }
+      }
     }
   }
 
@@ -392,18 +404,24 @@ export class BotEngine {
   }
 
   private static async processMenuOption(account: Account, session: ConversationSession, cwConvId: number, userMessage: string) {
+    const wasValid = await this.tryProcessMenuOption(account, session, cwConvId, userMessage);
+    if (!wasValid) {
+      await this.processMenuError(account, session, cwConvId);
+    }
+  }
+
+  private static async tryProcessMenuOption(account: Account, session: ConversationSession, cwConvId: number, userMessage: string): Promise<boolean> {
     const config = account.botConfig!;
     const flowGraph = config.flowGraph as any;
     const nodeId = session.currentNodeId || flowGraph.rootNodeId;
     
     const node = flowGraph.nodes.find((n: any) => n.id === nodeId);
 
-    // Si no es un nodo tipo menú, o no se encontró, ignoramos
-    if (!node || node.type !== 'MENU' || !node.options) return;
+    // Si no es un menú, consideramos que "no es opción válida"
+    if (!node || node.type !== 'MENU' || !node.options) return false;
 
     const cleanUserMsg = userMessage.trim().toLowerCase();
 
-    // Buscar si el usuario escribió el número, el texto exacto, o hizo clic en un botón/lista
     const selectedOption = node.options.find((opt: any, index: number) => {
       const optionIndexStr = (index + 1).toString();
       const cleanLabel = opt.label.trim().toLowerCase();
@@ -436,31 +454,32 @@ export class BotEngine {
           consecutiveErrors: 0,
         },
       });
-
-      // Enviar el nuevo nodo al que acabamos de saltar
       await this.sendCurrentNode(account, config, session.id, cwConvId);
-
-    } else {
-      // Opción inválida -> Sumar error
-      const newErrors = session.consecutiveErrors + 1;
-      await prisma.conversationSession.update({
-        where: { id: session.id },
-        data: { consecutiveErrors: newErrors },
-      });
-
-      if (account.chatwootAccessToken) {
-        // Enviar mensaje de error
-        await ChatwootService.sendMessage(
-          account.chatwootApiUrl,
-          account.chatwootAccessToken,
-          account.chatwootAccountId,
-          cwConvId,
-          config.fallbackMessage
-        );
-        // Volver a enviar el menú actual para que el usuario vea sus opciones
-        await this.sendCurrentNode(account, config, session.id, cwConvId);
-      }
+      return true;
     }
+    
+    return false;
+  }
+
+  private static async processMenuError(account: Account, session: ConversationSession, cwConvId: number) {
+    const config = account.botConfig!;
+    const newErrors = session.consecutiveErrors + 1;
+    await prisma.conversationSession.update({
+      where: { id: session.id },
+      data: { consecutiveErrors: newErrors },
+    });
+
+    if (account.chatwootAccessToken) {
+      await ChatwootService.sendMessage(
+        account.chatwootApiUrl,
+        account.chatwootAccessToken,
+        account.chatwootAccountId,
+        cwConvId,
+        config.fallbackMessage
+      );
+      await this.sendCurrentNode(account, config, session.id, cwConvId);
+    }
+  
   }
 
 
