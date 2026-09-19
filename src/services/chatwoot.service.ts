@@ -6,6 +6,31 @@ export interface SendMessageOptions {
 }
 
 export class ChatwootService {
+  static async setConversationStatus(
+    apiUrl: string,
+    accessToken: string,
+    accountId: number,
+    conversationId: number,
+    status: 'open' | 'resolved' | 'pending' | 'snoozed' | 'bot'
+  ): Promise<void> {
+    const url = `${apiUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/toggle_status`;
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api_access_token': accessToken,
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        console.error(`[ChatwootService] Error seteando status ${status}: ${await response.text()}`);
+      }
+    } catch (error) {
+      console.error(`[ChatwootService] Excepción seteando status:`, error);
+    }
+  }
+
   /**
    * Envía un mensaje desde el bot hacia el cliente en una conversación específica.
    */

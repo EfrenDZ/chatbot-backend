@@ -38,6 +38,11 @@ export class BotEngine {
     
     if (hoursInactive > timeoutHours) {
       console.log(`[BotEngine] Sesión ${session.id} expirada (>${timeoutHours}h). Reiniciando.`);
+      if (account.chatwootAccessToken) {
+         await ChatwootService.setConversationStatus(
+           account.chatwootApiUrl, account.chatwootAccessToken, account.chatwootAccountId, cwConversation.id, 'pending'
+         );
+      }
       await this.resetSession(session.id, account.botConfig);
       // Actualizamos estado en memoria para que se comporte como nueva si estaba en otro nodo
       session.currentNodeId = (account.botConfig.flowGraph as any).rootNodeId;
@@ -104,6 +109,17 @@ export class BotEngine {
         );
       }
       return;
+    }
+
+    // 2.4 Si la IA/Bot toma la conversación, la pasamos a 'pending' (Pendiente) para no notificar a los humanos
+    if (isNew && account.chatwootAccessToken) {
+      await ChatwootService.setConversationStatus(
+        account.chatwootApiUrl,
+        account.chatwootAccessToken,
+        account.chatwootAccountId,
+        cwConversation.id,
+        'pending' // En Chatwoot, 'pending' evita notificaciones masivas de nueva asignación en la bandeja abierta
+      );
     }
 
     // 2.5 Si es una nueva conversación, dar la bienvenida y mostrar el menú principal (ignorando el texto que usó para abrir el chat)
