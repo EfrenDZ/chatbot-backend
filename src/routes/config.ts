@@ -7,9 +7,9 @@ const prisma = new PrismaClient();
 
 
 // GET /api/config/:accountId/metrics
-configRouter.get('/:accountId/metrics', async (req, res) => {
+configRouter.get('/:accountId/metrics', requireAuth, async (req, res) => {
   try {
-    const accountId = parseInt(req.params.accountId, 10);
+    const accountId = parseInt(req.params.accountId as string, 10);
     const account = await prisma.account.findUnique({
       where: { chatwootAccountId: accountId }
     });
@@ -56,9 +56,9 @@ configRouter.get('/:accountId/metrics', async (req, res) => {
 });
 
 // GET /api/config/:accountId
-configRouter.get('/:accountId', async (req, res) => {
+configRouter.get('/:accountId', requireAuth, async (req, res) => {
   try {
-    const accountId = parseInt(req.params.accountId, 10);
+    const accountId = parseInt(req.params.accountId as string, 10);
     let account = await prisma.account.findUnique({
       where: { chatwootAccountId: accountId },
       include: { botConfig: true }
@@ -136,9 +136,9 @@ configRouter.get('/:accountId', async (req, res) => {
 });
 
 // PUT /api/config/:accountId
-configRouter.put('/:accountId', async (req, res) => {
+configRouter.put('/:accountId', requireAuth, async (req, res) => {
   try {
-    const accountId = parseInt(req.params.accountId, 10);
+    const accountId = parseInt(req.params.accountId as string, 10);
     const data = req.body;
 
     const account = await prisma.account.findUnique({ where: { chatwootAccountId: accountId } });
