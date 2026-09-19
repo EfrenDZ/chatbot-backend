@@ -88,7 +88,9 @@ export class BotEngine {
       const wasValidOption = await FlowRouter.tryProcessMenuOption(account, session, cwConversation.id, userMessage);
       if (!wasValidOption) {
         if (session.consecutiveErrors >= account.botConfig.maxConsecutiveErrors) {
-          await prisma.conversationSession.update({ where: { id: session.id }, data: { consecutiveErrors: 0 } });
+          // Ya superó el límite de errores, la IA toma el control permanentemente
+          // NO reseteamos consecutiveErrors a 0 aquí, porque si lo hacemos, 
+          // el siguiente mensaje lo regresará al menú estricto.
           await AiOrchestrator.processAiMessage(account, session, cwConversation.id, content);
         } else {
           await FlowRouter.processMenuError(account, session, cwConversation.id);
