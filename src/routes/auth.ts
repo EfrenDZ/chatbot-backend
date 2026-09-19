@@ -53,4 +53,24 @@ router.post('/login', async (req, res) => {
   }
 });
 
+
+// Endpoint especial para auto-login desde el Iframe de Chatwoot
+router.post('/iframe-bypass', (req, res) => {
+  const { accountId } = req.body;
+  if (!accountId) return res.status(400).json({ error: 'Missing accountId' });
+
+  // Generamos un token JWT válido solo para esta cuenta
+  const token = jwt.sign(
+    { 
+      uid: 'iframe-auto-login', 
+      email: 'iframe@zabotek.com',
+      accounts: [parseInt(accountId, 10)]
+    }, 
+    JWT_SECRET, 
+    { expiresIn: '1d' }
+  );
+
+  res.json({ token, user: { name: 'Chatwoot Iframe', accounts: [{ id: parseInt(accountId, 10) }] } });
+});
+
 export default router;
