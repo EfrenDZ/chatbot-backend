@@ -91,7 +91,8 @@ export class AiOrchestrator {
       config.aiProvider,
       config.aiModel,
       finalSystemPrompt,
-      history
+      history,
+      (config as any).aiTools || []
     );
 
     if (aiResult.text.includes('[ERROR_IA]')) {

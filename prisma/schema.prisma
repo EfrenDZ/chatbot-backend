@@ -59,6 +59,7 @@ model BotConfig {
   aiProvider             String   @default("openai") @map("ai_provider")
   aiModel                String   @default("gpt-4o-mini") @map("ai_model")
   aiPromptMode           String   @default("STRUCTURED") @map("ai_prompt_mode")
+  aiTools                Json?    @default("[]") @map("ai_tools")
   systemPrompt           String?  @map("system_prompt")
   aiKnowledge            Json?    @map("ai_knowledge")
   maxAiMessages          Int      @default(8) @map("max_ai_messages")
