@@ -67,6 +67,8 @@ model BotConfig {
   
   welcomeMessage         String?  @map("welcome_message")
   farewellMessage        String?  @map("farewell_message")
+  apiBaseUrl             String?  @map("api_base_url")
+  apiHeaders             Json?    @map("api_headers")
   fallbackMessage        String   @map("fallback_message")
   handoffMessage         String   @map("handoff_message")
   

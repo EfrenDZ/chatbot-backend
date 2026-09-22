@@ -64,9 +64,19 @@ export class FlowRouter {
       try {
         const metadata = typeof session!.sessionMetadata === 'string' ? JSON.parse(session!.sessionMetadata) : (session!.sessionMetadata || {});
         
+        // Configuración Global API
+        const globalHeaders = typeof config.apiHeaders === 'string' ? JSON.parse(config.apiHeaders) : (config.apiHeaders || {});
+        const customHeaders = { ...globalHeaders, ...(node.headers || {}) };
+        
+        let finalUrl = node.url;
+        if (node.url && node.url.startsWith('/') && config.apiBaseUrl) {
+          // Limpiar slash final del baseUrl si existe
+          const base = config.apiBaseUrl.endsWith('/') ? config.apiBaseUrl.slice(0, -1) : config.apiBaseUrl;
+          finalUrl = base + node.url;
+        }
+
         // Ejecutar petición HTTP
-        const customHeaders = node.headers || {};
-        const response = await fetch(node.url, {
+        const response = await fetch(finalUrl, {
           method: node.method || 'POST',
           headers: { 'Content-Type': 'application/json', ...customHeaders },
           body: JSON.stringify(metadata)
