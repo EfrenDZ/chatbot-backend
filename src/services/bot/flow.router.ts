@@ -30,7 +30,14 @@ export class FlowRouter {
       }
     }
 
-    const finalMessageText = messages[messages.length - 1];
+    let finalMessageText = messages[messages.length - 1];
+    
+    // Interpolación de variables {{variable}} desde sessionMetadata
+    const metadata = typeof session?.sessionMetadata === 'string' ? JSON.parse(session.sessionMetadata) : (session?.sessionMetadata || {});
+    finalMessageText = finalMessageText.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+      const val = metadata[key.trim()];
+      return val !== undefined && val !== null ? String(val) : match;
+    });
 
     if (node.type === 'RESTART') {
       await SessionManager.resetSession(sessionId, config);
