@@ -135,8 +135,6 @@ export class FlowRouter {
     }
 
     if (node.type === 'INPUT') {
-      // Los nodos de INPUT simplemente mandan su mensaje y esperan a que el usuario escriba
-      // No tienen opciones
       if (account.chatwootAccessToken) {
         await ChatwootService.sendMessage(
           account.chatwootApiUrl,
@@ -146,6 +144,43 @@ export class FlowRouter {
           finalMessageText
         );
         await delay(2000);
+      }
+      return;
+    }
+
+    if (node.type === 'DYNAMIC_MENU') {
+      const arr = metadata[node.arrayVariable || ''] || [];
+      const items = arr.slice(0, 10).map((item: any, index: number) => {
+        let title = node.titleTemplate || '{{nombre}}';
+        title = title.replace(/\{\{([^}]+)\}\}/g, (m: string, k: string) => {
+          const val = item[k.trim()];
+          return val !== undefined && val !== null ? String(val) : m;
+        });
+        const valKey = node.valueKey || 'id';
+        const value = item[valKey] !== undefined ? String(item[valKey]) : String(index);
+        return { title: title.substring(0, 23), value };
+      });
+
+      if (account.chatwootAccessToken) {
+        if (items.length > 0) {
+          await ChatwootService.sendMessage(
+            account.chatwootApiUrl,
+            account.chatwootAccessToken,
+            account.chatwootAccountId,
+            cwConvId,
+            finalMessageText,
+            { contentType: 'input_select', contentAttributes: { items } }
+          );
+        } else {
+          await ChatwootService.sendMessage(
+            account.chatwootApiUrl,
+            account.chatwootAccessToken,
+            account.chatwootAccountId,
+            cwConvId,
+            finalMessageText + '\n(No hay opciones disponibles)'
+          );
+        }
+        await delay(2500);
       }
       return;
     }
@@ -289,7 +324,7 @@ export class FlowRouter {
   }
 
   static async tryProcessInputNode(account: Account, session: ConversationSession, cwConvId: number, userMessage: string, node: any): Promise<boolean> {
-    if (node.type !== 'INPUT') return false;
+    if (node.type !== 'INPUT' && node.type !== 'DYNAMIC_MENU') return false;
     
     const varName = node.variableName || 'input';
     let metadata = typeof session!.sessionMetadata === 'string' ? JSON.parse(session!.sessionMetadata) : (session!.sessionMetadata || {});
