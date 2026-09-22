@@ -65,9 +65,10 @@ export class FlowRouter {
         const metadata = typeof session!.sessionMetadata === 'string' ? JSON.parse(session!.sessionMetadata) : (session!.sessionMetadata || {});
         
         // Ejecutar petición HTTP
+        const customHeaders = node.headers || {};
         const response = await fetch(node.url, {
           method: node.method || 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...customHeaders },
           body: JSON.stringify(metadata)
         });
 
