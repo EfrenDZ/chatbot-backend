@@ -35,7 +35,8 @@ export class FlowRouter {
     // Interpolación de variables {{variable}} desde sessionMetadata
     const metadata = typeof session?.sessionMetadata === 'string' ? JSON.parse(session.sessionMetadata) : (session?.sessionMetadata || {});
     finalMessageText = finalMessageText.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
-      const val = metadata[key.trim()];
+      const path = key.trim();
+      const val = path.split('.').reduce((acc: any, part: string) => acc && acc[part] !== undefined ? acc[part] : undefined, metadata);
       return val !== undefined && val !== null ? String(val) : match;
     });
 
