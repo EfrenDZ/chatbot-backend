@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { webhookRouter } from './routes/webhook';
 import { configRouter } from './routes/config';
 import authRouter from './routes/auth';
+import integrationRouter from './routes/integration';
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ app.get('/', (req, res) => {
 app.use('/webhook', webhookRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/config', configRouter);
+app.use('/api/integration', integrationRouter);
 
 app.listen(PORT, () => {
   console.log(`🚀 Chatbot SaaS Backend running on http://localhost:${PORT}`);

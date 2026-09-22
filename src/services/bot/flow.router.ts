@@ -71,15 +71,33 @@ export class FlowRouter {
           body: JSON.stringify(metadata)
         });
 
+        let responseData = {};
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            responseData = await response.json();
+          } catch(e) {}
+        }
+        
+        const updatedMetadata = { ...metadata, ...responseData };
+
         if (response.ok) {
           await prisma.conversationSession.update({
             where: { id: sessionId },
-            data: { currentNodeId: node.successNodeId, consecutiveErrors: 0 }
+            data: { 
+              currentNodeId: node.successNodeId, 
+              consecutiveErrors: 0,
+              sessionMetadata: updatedMetadata 
+            }
           });
         } else {
           await prisma.conversationSession.update({
             where: { id: sessionId },
-            data: { currentNodeId: node.errorNodeId, consecutiveErrors: 0 }
+            data: { 
+              currentNodeId: node.errorNodeId, 
+              consecutiveErrors: 0,
+              sessionMetadata: updatedMetadata 
+            }
           });
         }
       } catch (err) {
