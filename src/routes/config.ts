@@ -165,6 +165,9 @@ configRouter.put('/:accountId', requireAuth, async (req, res) => {
       farewellMessage: data.farewellMessage,
       fallbackMessage: data.fallbackMessage,
       handoffMessage: data.handoffMessage,
+      apiBaseUrl: data.apiBaseUrl,
+      apiHeaders: data.apiHeaders,
+      aiTools: data.aiTools,
     };
 
     if (data.flowGraph !== undefined) {
