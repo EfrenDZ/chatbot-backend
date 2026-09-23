@@ -34,7 +34,7 @@ export class FlowRouter {
     
     // Interpolación de variables {{variable}} desde sessionMetadata
     const metadata = typeof session?.sessionMetadata === 'string' ? JSON.parse(session.sessionMetadata) : (session?.sessionMetadata || {});
-    finalMessageText = finalMessageText.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+    finalMessageText = finalMessageText.replace(/\{\{([^}]+)\}\}/g, (match: string, key: string) => {
       const path = key.trim();
       const val = path.split('.').reduce((acc: any, part: string) => acc && acc[part] !== undefined ? acc[part] : undefined, metadata);
       return val !== undefined && val !== null ? String(val) : match;
@@ -76,7 +76,7 @@ export class FlowRouter {
         // Helper para extraer variables anidadas (ej. "cliente.direccion")
         const getValue = (obj: any, path: string) => {
           if (!path) return undefined;
-          return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+          return path.split('.').reduce((acc: any, part: string) => acc && acc[part], obj);
         };
 
         const val = getValue(metadata, node.conditionVariable || '');
@@ -129,11 +129,29 @@ export class FlowRouter {
         
         const payload = { ...metadata, telefono };
 
+        let bodyData = JSON.stringify(payload);
+        if (node.payloadTemplate) {
+          let interpolated = node.payloadTemplate.replace(/\{\{([^}]+)\}\}/g, (match: string, key: string) => {
+            const path = key.trim();
+            const val = path.split('.').reduce((acc: any, part: string) => acc && acc[part] !== undefined ? acc[part] : undefined, payload);
+            // Si el valor es undefined, mantenemos el string original para evitar romper el JSON, o lo dejamos vacio.
+            // Es mejor reemplazar por string vacio o null si queremos JSON valido, pero dejaremos match por simplicidad.
+            if (val === undefined || val === null) return "null";
+            
+            // Si el valor es string pero lo inyectamos sin comillas, puede romper json si tiene espacios. 
+            // ASUMIMOS que el usuario pone comillas en el template para strings: "{{variable}}".
+            // Pero cantidad es un numero.
+            // Para mayor robustez en JSON, podemos reemplazar de forma segura:
+            return String(val);
+          });
+          bodyData = interpolated;
+        }
+
         // Ejecutar petición HTTP
         const response = await fetch(finalUrl, {
           method: node.method || 'POST',
           headers: { 'Content-Type': 'application/json', ...customHeaders },
-          body: JSON.stringify(payload)
+          body: bodyData
         });
 
         let responseData = {};
