@@ -422,6 +422,7 @@ export class FlowRouter {
       if (matchedItem) {
         const valKey = node.valueKey || 'id';
         finalValueToSave = matchedItem[valKey] !== undefined ? String(matchedItem[valKey]) : String(arr.indexOf(matchedItem));
+        metadata[varName + '_item'] = matchedItem;
       }
     }
 
