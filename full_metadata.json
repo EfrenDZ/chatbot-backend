@@ -1,0 +1,52 @@
+{
+  "cliente": null,
+  "cantidad": "3",
+  "catalogo": [
+    {
+      "id": 1,
+      "nombre": "Agua Cero 500ml",
+      "precio": "3.28",
+      "precios_volumen": null
+    },
+    {
+      "id": 2,
+      "nombre": "Ciel",
+      "precio": "24.00",
+      "precios_volumen": null
+    },
+    {
+      "id": 3,
+      "nombre": "Garrafon normal",
+      "precio": "24.00",
+      "precios_volumen": null
+    },
+    {
+      "id": 30001,
+      "nombre": "Agua Cero 1 lt.",
+      "precio": "4.50",
+      "precios_volumen": null
+    },
+    {
+      "id": 210002,
+      "nombre": "Agua cero 1.5",
+      "precio": "6.38",
+      "precios_volumen": null
+    }
+  ],
+  "horario_hoy": {
+    "id": 4,
+    "laborable": true,
+    "dia_semana": 3,
+    "hora_corte": "15:00",
+    "hora_inicio": "08:00",
+    "mensaje_cerrado": null,
+    "mensaje_antes_apertura": null,
+    "mensaje_despues_cierre": null
+  },
+  "ultimo_pedido": null,
+  "mensaje_estado": "",
+  "direccion_nueva": "Calle Adolfo de la Huerta 154",
+  "estado_operativo": "ANTES_APERTURA",
+  "producto_elegido": "3",
+  "usar_mensajes_predeterminados": false
+}

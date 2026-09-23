@@ -127,7 +127,14 @@ export class FlowRouter {
         else if (metadata?.meta?.sender?.phone_number) telefono = metadata.meta.sender.phone_number;
         else if (metadata?.conversation?.meta?.sender?.phone_number) telefono = metadata.conversation.meta.sender.phone_number;
         
-        const payload = { ...metadata, telefono };
+        // Extraer nombre
+        let nombre = 'Usuario';
+        if (metadata?.sender?.name) nombre = metadata.sender.name;
+        else if (metadata?.meta?.sender?.name) nombre = metadata.meta.sender.name;
+        else if (metadata?.conversation?.meta?.sender?.name) nombre = metadata.conversation.meta.sender.name;
+        else if (session?.contactIdentifier) nombre = 'Cliente ' + session.contactIdentifier;
+
+        const payload = { ...metadata, telefono, nombre };
 
         let bodyData = JSON.stringify(payload);
         if (node.payloadTemplate) {
