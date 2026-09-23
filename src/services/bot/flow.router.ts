@@ -115,10 +115,10 @@ export class FlowRouter {
         const customHeaders = { ...globalHeaders, ...(node.headers || {}) };
         
         let finalUrl = node.url;
-        if (node.url && node.url.startsWith('/') && config.apiBaseUrl) {
+        if (node.url && (node.url.startsWith('/') || node.url.startsWith('?')) && config.apiBaseUrl) {
           // Limpiar slash final del baseUrl si existe
           const base = config.apiBaseUrl.endsWith('/') ? config.apiBaseUrl.slice(0, -1) : config.apiBaseUrl;
-          finalUrl = base + node.url;
+          finalUrl = node.url.startsWith('?') ? base + '/' + node.url.replace(/^\//, '') : base + node.url;
         }
 
         // Ejecutar petición HTTP

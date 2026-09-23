@@ -1,0 +1,117 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+async function main() {
+  const accountId = "93e076e9-c540-4c1e-afe7-267d55c52856";
+  const config = await prisma.botConfig.findUnique({ where: { accountId } });
+  
+  if (!config) { console.log('Config not found'); return; }
+
+  const graph = config.flowGraph;
+  
+  // We want to fix the Red Branch (node-e-1790113969586)
+  const redNodeIndex = graph.nodes.findIndex(n => n.id === "node-e-1790113969586");
+  
+  if (redNodeIndex >= 0) {
+    graph.nodes[redNodeIndex] = {
+      "id": "node-e-1790113969586",
+      "text": "¡Hola! Veo que es tu primer pedido. Para registrarte y enviar tu agua, ¿cuál es tu dirección y referencias?",
+      "type": "INPUT",
+      "messages": [
+        "¡Hola! Veo que es tu primer pedido. Para registrarte y enviar tu agua, ¿cuál es tu dirección y referencias?"
+      ],
+      "variableName": "direccion_nueva",
+      "targetNodeId": "node-red-catalog"
+    };
+
+    graph.nodes.push({
+      "id": "node-red-catalog",
+      "text": "¡Perfecto! Aquí tienes nuestros productos disponibles hoy:",
+      "type": "DYNAMIC_MENU",
+      "messages": [
+        "¡Perfecto! Aquí tienes nuestros productos disponibles hoy:"
+      ],
+      "valueKey": "id",
+      "variableName": "producto_elegido",
+      "arrayVariable": "catalogo",
+      "titleTemplate": "{{nombre}} - ${{precio}}",
+      "targetNodeId": "node-red-quantity"
+    });
+
+    graph.nodes.push({
+      "id": "node-red-quantity",
+      "text": "Excelente elección. ¿Cuántos vas a querer?",
+      "type": "INPUT",
+      "messages": [
+        "Excelente elección. ¿Cuántos vas a querer?"
+      ],
+      "variableName": "cantidad",
+      "targetNodeId": "node-webhook-final" 
+    });
+  }
+
+  // Find the end of the Green Branch Option 2 (node-1790116158229)
+  const greenEndIndex = graph.nodes.findIndex(n => n.id === "node-1790116158229");
+  if (greenEndIndex >= 0) {
+    graph.nodes[greenEndIndex] = {
+      "id": "node-1790116158229",
+      "text": "Procesando orden...",
+      "type": "WEBHOOK",
+      "messages": ["Procesando orden..."],
+      "url": "?action=crear_pedido",
+      "method": "POST",
+      "successNodeId": "node-final-success",
+      "errorNodeId": "node-final-error"
+    };
+  }
+  
+  // Fix "Lo mismo de siempre"
+  const loMismoIndex = graph.nodes.findIndex(n => n.id === "node-1790114024125");
+  if (loMismoIndex >= 0) {
+    graph.nodes[loMismoIndex] = {
+      "id": "node-1790114024125",
+      "text": "Procesando orden...",
+      "type": "WEBHOOK",
+      "messages": ["Procesando orden..."],
+      "url": "?action=crear_pedido",
+      "method": "POST",
+      "successNodeId": "node-final-success",
+      "errorNodeId": "node-final-error"
+    };
+  }
+
+  // Final Webhook Red Path
+  graph.nodes.push({
+    "id": "node-webhook-final",
+    "text": "Procesando orden...",
+    "type": "WEBHOOK",
+    "messages": ["Procesando orden..."],
+    "url": "?action=crear_pedido",
+    "method": "POST",
+    "successNodeId": "node-final-success",
+    "errorNodeId": "node-final-error"
+  });
+
+  graph.nodes.push({
+    "id": "node-final-success",
+    "text": "¡Tu pedido ha sido confirmado con éxito! Va en camino a tu domicilio. ¡Gracias por elegir AguaCero!",
+    "type": "MESSAGE",
+    "messages": ["¡Tu pedido ha sido confirmado con éxito! Va en camino a tu domicilio. ¡Gracias por elegir AguaCero!"]
+  });
+  
+  graph.nodes.push({
+    "id": "node-final-error",
+    "text": "Hubo un problema procesando tu pedido. Por favor intenta de nuevo en unos minutos o escribe 'humano'.",
+    "type": "MESSAGE",
+    "messages": ["Hubo un problema procesando tu pedido. Por favor intenta de nuevo en unos minutos o escribe 'humano'."]
+  });
+
+  await prisma.botConfig.update({
+    where: { accountId },
+    data: { flowGraph: graph }
+  });
+  
+  console.log('Flow injected successfully.');
+}
+
+main().catch(console.error).finally(() => prisma.$disconnect());
