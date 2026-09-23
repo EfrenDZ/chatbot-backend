@@ -86,7 +86,7 @@ export class BotEngine {
     const currentNode = flowGraph.nodes?.find((n: any) => n.id === currentNodeId);
 
     // Si estamos en un nodo INPUT, procesamos la variable sin importar el modo
-    if (currentNode && currentNode.type === 'INPUT') {
+    if (currentNode && (currentNode.type === 'INPUT' || currentNode.type === 'DYNAMIC_MENU')) {
       await FlowRouter.tryProcessInputNode(account, session, cwConversation.id, content, currentNode);
       return;
     }
