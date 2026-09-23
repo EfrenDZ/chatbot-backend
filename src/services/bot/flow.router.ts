@@ -139,18 +139,16 @@ export class FlowRouter {
         let bodyData = JSON.stringify(payload);
         
         if (node.payloadTemplate) {
-          let interpolated = node.payloadTemplate.replace(/\{\{([^}]+)\}\}/g, (match: string, key: string) => {
+          let interpolated = node.payloadTemplate.replace(/"\{\{([^}]+)\}\}"/g, (match: string, key: string) => {
+            // First, replace quoted variables that evaluate to arrays/objects with valid JSON arrays/objects
             const path = key.trim();
+            if (path === 'carrito' && metadata.carrito) return JSON.stringify(metadata.carrito);
+            return match; // fallback to unquoted replace
+          }).replace(/\{\{([^}]+)\}\}/g, (match: string, key: string) => {
+            const path = key.trim();
+            if (path === 'carrito' && metadata.carrito) return JSON.stringify(metadata.carrito);
             const val = path.split('.').reduce((acc: any, part: string) => acc && acc[part] !== undefined ? acc[part] : undefined, payload);
-            // Si el valor es undefined, mantenemos el string original para evitar romper el JSON, o lo dejamos vacio.
-            // Es mejor reemplazar por string vacio o null si queremos JSON valido, pero dejaremos match por simplicidad.
-            if (val === undefined || val === null) return "null";
-            
-            // Si el valor es string pero lo inyectamos sin comillas, puede romper json si tiene espacios. 
-            // ASUMIMOS que el usuario pone comillas en el template para strings: "{{variable}}".
-            // Pero cantidad es un numero.
-            // Para mayor robustez en JSON, podemos reemplazar de forma segura:
-            return String(val);
+            return val !== undefined && val !== null ? String(val) : match;
           });
           bodyData = interpolated;
         }
@@ -426,8 +424,27 @@ export class FlowRouter {
       }
     }
 
+    
     // Guardar la variable
     metadata[varName] = finalValueToSave;
+
+    // MAGIA DE CARRITO: Si la variable que acabamos de guardar es 'cantidad', metemos el item al carrito
+    if (varName === 'cantidad' && metadata.producto_elegido_item) {
+      if (!metadata.carrito) metadata.carrito = [];
+      
+      const item = metadata.producto_elegido_item;
+      const q = parseInt(finalValueToSave) || 1;
+      const p = parseFloat(item.precio) || 0;
+      
+      metadata.carrito.push({
+        producto_id: parseInt(item.id) || item.id,
+        nombre: item.nombre,
+        cantidad: q,
+        precio: item.precio,
+        subtotal: q * p
+      });
+    }
+
 
     await prisma.conversationSession.update({
       where: { id: session.id },
