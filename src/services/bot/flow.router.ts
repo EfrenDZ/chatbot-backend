@@ -138,22 +138,6 @@ export class FlowRouter {
 
         let bodyData = JSON.stringify(payload);
         
-        // HARDCODE para proteger contra sobrescrituras del frontend
-        if (node.url && node.url.includes('pedido') && !node.payloadTemplate) {
-          node.payloadTemplate = `{
-  "telefono": "{{telefono}}",
-  "nombre": "{{nombre}}",
-  "direccion": "{{direccion_nueva}}",
-  "detalle": [
-    {
-      "producto_id": {{producto_elegido}},
-      "cantidad": {{cantidad}},
-      "precio": "48.00"
-    }
-  ]
-}`;
-        }
-
         if (node.payloadTemplate) {
           let interpolated = node.payloadTemplate.replace(/\{\{([^}]+)\}\}/g, (match: string, key: string) => {
             const path = key.trim();
