@@ -148,16 +148,32 @@ export class FlowRouter {
         let bodyData = JSON.stringify(payload);
         
         if (node.payloadTemplate) {
+          // Garantizar carrito valido
+          let cartArray = metadata.carrito;
+          if (!Array.isArray(cartArray) || cartArray.length === 0) {
+            if (metadata.producto_elegido) {
+              const pid = parseInt(metadata.producto_elegido) || metadata.producto_elegido;
+              const q = parseInt(metadata.cantidad) || 1;
+              const pr = metadata.producto_elegido_item?.precio || "24.00";
+              cartArray = [{ producto_id: pid, cantidad: q, precio: String(pr) }];
+            } else {
+              cartArray = [];
+            }
+          }
+
           let interpolated = node.payloadTemplate.replace(/"\{\{([^}]+)\}\}"/g, (match: string, key: string) => {
-            // First, replace quoted variables that evaluate to arrays/objects with valid JSON arrays/objects
             const path = key.trim();
-            if (path === 'carrito' && metadata.carrito) return JSON.stringify(metadata.carrito);
-            return match; // fallback to unquoted replace
+            if (path === 'carrito') return JSON.stringify(cartArray);
+            return match;
           }).replace(/\{\{([^}]+)\}\}/g, (match: string, key: string) => {
             const path = key.trim();
-            if (path === 'carrito' && metadata.carrito) return JSON.stringify(metadata.carrito);
+            if (path === 'carrito') return JSON.stringify(cartArray);
             const val = path.split('.').reduce((acc: any, part: string) => acc && acc[part] !== undefined ? acc[part] : undefined, payload);
-            return val !== undefined && val !== null ? String(val) : match;
+            if (val !== undefined && val !== null) {
+              if (typeof val === 'object') return JSON.stringify(val);
+              return String(val);
+            }
+            return match;
           });
           bodyData = interpolated;
         }
