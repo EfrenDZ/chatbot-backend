@@ -394,8 +394,31 @@ export class FlowRouter {
     const varName = node.variableName || 'input';
     let metadata = typeof session!.sessionMetadata === 'string' ? JSON.parse(session!.sessionMetadata) : (session!.sessionMetadata || {});
     
+    let finalValueToSave = userMessage.trim();
+
+    if (node.type === 'DYNAMIC_MENU') {
+      const arr = metadata[node.arrayVariable || ''] || [];
+      const cleanUserMsg = userMessage.toLowerCase().trim();
+      
+      // Intentar encontrar el item cuyo titulo coincida (ya que whatsapp envia el titulo)
+      const matchedItem = arr.slice(0, 10).find((item: any, index: number) => {
+        let title = node.titleTemplate || '{{nombre}}';
+        title = title.replace(/\{\{([^}]+)\}\}/g, (m: string, k: string) => {
+          const val = item[k.trim()];
+          return val !== undefined && val !== null ? String(val) : m;
+        });
+        const truncatedTitle = title.substring(0, 23).toLowerCase().trim();
+        return truncatedTitle === cleanUserMsg || cleanUserMsg.includes(truncatedTitle) || truncatedTitle.includes(cleanUserMsg);
+      });
+
+      if (matchedItem) {
+        const valKey = node.valueKey || 'id';
+        finalValueToSave = matchedItem[valKey] !== undefined ? String(matchedItem[valKey]) : String(arr.indexOf(matchedItem));
+      }
+    }
+
     // Guardar la variable
-    metadata[varName] = userMessage.trim();
+    metadata[varName] = finalValueToSave;
 
     await prisma.conversationSession.update({
       where: { id: session.id },
