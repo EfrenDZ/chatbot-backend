@@ -126,15 +126,24 @@ export class FlowRouter {
         if (metadata?.sender?.phone_number) telefono = metadata.sender.phone_number;
         else if (metadata?.meta?.sender?.phone_number) telefono = metadata.meta.sender.phone_number;
         else if (metadata?.conversation?.meta?.sender?.phone_number) telefono = metadata.conversation.meta.sender.phone_number;
+        else if (session?.contactIdentifier) telefono = session.contactIdentifier;
         
         // Extraer nombre
-        let nombre = 'Usuario';
-        if (metadata?.sender?.name) nombre = metadata.sender.name;
+        let nombre = metadata.nombre_cliente || 'Usuario';
+        if (metadata.nombre_cliente) nombre = metadata.nombre_cliente;
+        else if (metadata?.sender?.name) nombre = metadata.sender.name;
         else if (metadata?.meta?.sender?.name) nombre = metadata.meta.sender.name;
         else if (metadata?.conversation?.meta?.sender?.name) nombre = metadata.conversation.meta.sender.name;
         else if (session?.contactIdentifier) nombre = 'Cliente ' + session.contactIdentifier;
 
-        const payload = { ...metadata, telefono, nombre };
+        const payload = { 
+          ...metadata, 
+          telefono, 
+          phone: telefono, 
+          nombre, 
+          nombre_del_cliente: nombre, 
+          nombre_cliente: nombre 
+        };
 
         let bodyData = JSON.stringify(payload);
         
