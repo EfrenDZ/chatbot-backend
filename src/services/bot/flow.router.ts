@@ -121,11 +121,19 @@ export class FlowRouter {
           finalUrl = node.url.startsWith('?') ? base + '/' + node.url.replace(/^\//, '') : base + node.url;
         }
 
+        // Extraer telefono para compatibilidad con API AguaCero
+        let telefono = '';
+        if (metadata?.sender?.phone_number) telefono = metadata.sender.phone_number;
+        else if (metadata?.meta?.sender?.phone_number) telefono = metadata.meta.sender.phone_number;
+        else if (metadata?.conversation?.meta?.sender?.phone_number) telefono = metadata.conversation.meta.sender.phone_number;
+        
+        const payload = { ...metadata, telefono };
+
         // Ejecutar petición HTTP
         const response = await fetch(finalUrl, {
           method: node.method || 'POST',
           headers: { 'Content-Type': 'application/json', ...customHeaders },
-          body: JSON.stringify(metadata)
+          body: JSON.stringify(payload)
         });
 
         let responseData = {};
