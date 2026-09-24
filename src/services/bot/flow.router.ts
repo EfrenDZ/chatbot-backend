@@ -332,6 +332,18 @@ export class FlowRouter {
       );
       await delay(2000);
     }
+
+    if (node.targetNodeId) {
+      await prisma.conversationSession.update({
+        where: { id: sessionId },
+        data: { currentNodeId: node.targetNodeId, consecutiveErrors: 0 },
+      });
+      const newSession = await prisma.conversationSession.findUnique({ where: { id: sessionId } });
+      if (newSession) {
+        await this.sendCurrentNode(account, config, newSession.id, cwConvId);
+      }
+      return;
+    }
   }
 
   static async executeHandoff(account: Account, session: ConversationSession, cwConvId: number, customMessage?: string) {
