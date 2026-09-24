@@ -29,6 +29,7 @@ export class SessionManager {
         consecutiveErrors: 0,
         status: 'BOT_HANDLING',
         aiMessagesCount: 0,
+        sessionMetadata: {},
       },
     });
   }
