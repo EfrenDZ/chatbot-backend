@@ -5,6 +5,7 @@ import { webhookRouter } from './routes/webhook';
 import { configRouter } from './routes/config';
 import authRouter from './routes/auth';
 import integrationRouter from './routes/integration';
+import { IdleService } from './services/idle.service';
 
 dotenv.config();
 
@@ -27,4 +28,5 @@ app.use('/api/integration', integrationRouter);
 
 app.listen(PORT, () => {
   console.log(`🚀 Chatbot SaaS Backend running on http://localhost:${PORT}`);
+  IdleService.startIdleCloser(10); // Chequea cada 10 min, inactivo por 1 hora
 });

@@ -34,7 +34,7 @@ export class FlowRouter {
     
     // Interpolación de variables {{variable}} desde sessionMetadata
     const metadata = typeof session?.sessionMetadata === 'string' ? JSON.parse(session.sessionMetadata) : (session?.sessionMetadata || {});
-    finalMessageText = finalMessageText.replace(/\{\{([^}]+)\}\}/g, (match: string, key: string) => {
+    finalMessageText = (finalMessageText || '').replace(/\{\{([^}]+)\}\}/g, (match: string, key: string) => {
       const path = key.trim();
       const val = path.split('.').reduce((acc: any, part: string) => acc && acc[part] !== undefined ? acc[part] : undefined, metadata);
       return val !== undefined && val !== null ? String(val) : match;
@@ -107,6 +107,7 @@ export class FlowRouter {
     }
 
     if (node.type === 'WEBHOOK') {
+      require('fs').appendFileSync('/Users/efrendz/Downloads/chatwoot/chatbot-saas/backend/debug.log', "ENTERED WEBHOOK\n");
       try {
         const metadata = typeof session!.sessionMetadata === 'string' ? JSON.parse(session!.sessionMetadata) : (session!.sessionMetadata || {});
         
@@ -148,38 +149,22 @@ export class FlowRouter {
         let bodyData = JSON.stringify(payload);
         
         if (node.payloadTemplate) {
-          // Garantizar carrito valido
-          let cartArray = metadata.carrito;
-          if (!Array.isArray(cartArray) || cartArray.length === 0) {
-            if (metadata.producto_elegido) {
-              const pid = parseInt(metadata.producto_elegido) || metadata.producto_elegido;
-              const q = parseInt(metadata.cantidad) || 1;
-              const pr = metadata.producto_elegido_item?.precio || "24.00";
-              cartArray = [{ producto_id: pid, cantidad: q, precio: String(pr) }];
-            } else {
-              cartArray = [];
-            }
-          }
-
           let interpolated = node.payloadTemplate.replace(/"\{\{([^}]+)\}\}"/g, (match: string, key: string) => {
+            // First, replace quoted variables that evaluate to arrays/objects with valid JSON arrays/objects
             const path = key.trim();
-            if (path === 'carrito') return JSON.stringify(cartArray);
-            return match;
+            if (path === 'carrito' && metadata.carrito) return JSON.stringify(metadata.carrito);
+            return match; // fallback to unquoted replace
           }).replace(/\{\{([^}]+)\}\}/g, (match: string, key: string) => {
             const path = key.trim();
-            if (path === 'carrito') return JSON.stringify(cartArray);
+            if (path === 'carrito' && metadata.carrito) return JSON.stringify(metadata.carrito);
             const val = path.split('.').reduce((acc: any, part: string) => acc && acc[part] !== undefined ? acc[part] : undefined, payload);
-            if (val !== undefined && val !== null) {
-              if (typeof val === 'object') return JSON.stringify(val);
-              return String(val);
-            }
-            return match;
+            return val !== undefined && val !== null ? String(val) : match;
           });
           bodyData = interpolated;
         }
 
         // Ejecutar petición HTTP
-        const response = await fetch(finalUrl, {
+        require('fs').appendFileSync('/Users/efrendz/Downloads/chatwoot/chatbot-saas/backend/debug.log', 'FETCHING: ' + finalUrl + '\n'); const response = await fetch(finalUrl, {
           method: node.method || 'POST',
           headers: { 'Content-Type': 'application/json', ...customHeaders },
           body: bodyData
@@ -195,7 +180,7 @@ export class FlowRouter {
         
         const updatedMetadata = { ...metadata, ...responseData };
 
-        if (response.ok) {
+        require('fs').appendFileSync('/Users/efrendz/Downloads/chatwoot/chatbot-saas/backend/debug.log', 'RESPONSE OK!\n'); if (response.ok) {
           await prisma.conversationSession.update({
             where: { id: sessionId },
             data: { 
@@ -215,7 +200,7 @@ export class FlowRouter {
           });
         }
       } catch (err) {
-        console.error('[FlowRouter] Webhook error:', err);
+        require('fs').appendFileSync('/Users/efrendz/Downloads/chatwoot/chatbot-saas/backend/debug.log', 'ERROR: ' + (err as Error).message + '\n'); console.error('[FlowRouter] Webhook error:', err);
         await prisma.conversationSession.update({
           where: { id: sessionId },
           data: { currentNodeId: node.errorNodeId, consecutiveErrors: 0 }
@@ -462,28 +447,11 @@ export class FlowRouter {
     }
 
     
+    
     // Guardar la variable
     metadata[varName] = finalValueToSave;
 
-    // MAGIA DE CARRITO: Si la variable que acabamos de guardar es 'cantidad', metemos el item al carrito
-    if (varName === 'cantidad' && metadata.producto_elegido_item) {
-      if (!metadata.carrito) metadata.carrito = [];
-      
-      const item = metadata.producto_elegido_item;
-      const q = parseInt(finalValueToSave) || 1;
-      const p = parseFloat(item.precio) || 0;
-      
-      metadata.carrito.push({
-        producto_id: parseInt(item.id) || item.id,
-        nombre: item.nombre,
-        cantidad: q,
-        precio: item.precio,
-        subtotal: q * p
-      });
-    }
-
-
-    await prisma.conversationSession.update({
+            await prisma.conversationSession.update({
       where: { id: session.id },
       data: {
         currentNodeId: node.targetNodeId,

@@ -1,0 +1,439 @@
+{
+  "nodes": [
+    {
+      "id": "node-root",
+      "text": "Deseas informacion?",
+      "type": "MENU",
+      "options": [
+        {
+          "id": "opt-1",
+          "label": "Sucursales",
+          "targetNodeId": "node-info"
+        },
+        {
+          "id": "opt-1790113848738",
+          "label": "Nuevo Pedido",
+          "targetNodeId": "node-1790113848738"
+        }
+      ],
+      "messages": [
+        "¡Hola! Bienvenido a Agua Cero, en que puedo ayudarte?",
+        "Deseas informacion?"
+      ],
+      "position": {
+        "x": 510,
+        "y": 0
+      }
+    },
+    {
+      "id": "node-info",
+      "text": "Puedes ir a la que quieras",
+      "type": "MESSAGE",
+      "messages": [
+        "Actualmente tenemos 3 sucursales\nSucursal Ramirez\nSucursal 10 de Mayo \nSucursal Juarez",
+        "Puedes ir a la que quieras"
+      ],
+      "position": {
+        "x": 260,
+        "y": 400
+      },
+      "targetNodeId": "node-otra-cosa"
+    },
+    {
+      "id": "node-1790113848738",
+      "url": "/contexto",
+      "text": "Nueva respuesta o submenú...",
+      "type": "WEBHOOK",
+      "messages": [
+        "Nueva respuesta o submenú..."
+      ],
+      "position": {
+        "x": 760,
+        "y": 400
+      },
+      "errorNodeId": "node-e-1790113889755",
+      "targetNodeId": "node-1790113865054",
+      "arrayVariable": "",
+      "successNodeId": "node-contexto-horario-check",
+      "payloadTemplate": ""
+    },
+    {
+      "id": "node-s-1790113889755",
+      "text": "Éxito...",
+      "type": "CONDITION",
+      "messages": [
+        "Éxito..."
+      ],
+      "position": {
+        "x": 510,
+        "y": 800
+      },
+      "errorNodeId": "node-name-input",
+      "successNodeId": "node-s-1790113969586",
+      "conditionVariable": "cliente.id"
+    },
+    {
+      "id": "node-e-1790113889755",
+      "text": "Error...",
+      "type": "MESSAGE",
+      "messages": [
+        "Error..."
+      ],
+      "position": {
+        "x": 1010,
+        "y": 800
+      }
+    },
+    {
+      "id": "node-s-1790113969586",
+      "text": "¡Hola {{cliente.nombre}}! ¿Te mandamos lo mismo de siempre? ({{ultimo_pedido.resumen_texto}} por ${{ultimo_pedido.total}})",
+      "type": "MENU",
+      "options": [
+        {
+          "id": "opt-1790114024125",
+          "label": "Lo mismo de siempre",
+          "targetNodeId": "node-1790114024125"
+        },
+        {
+          "id": "opt-1790115871394",
+          "label": "Nuevo Pedido",
+          "targetNodeId": "node-1790115871394"
+        }
+      ],
+      "messages": [
+        "¡Hola {{cliente.nombre}}! ¿Te mandamos lo mismo de siempre? ({{ultimo_pedido.resumen_texto}} por ${{ultimo_pedido.total}})"
+      ],
+      "position": {
+        "x": 260,
+        "y": 1200
+      }
+    },
+    {
+      "id": "node-e-1790113969586",
+      "text": "Gracias {{nombre_cliente}}, ahora dime ¿cuál es tu dirección y referencias?",
+      "type": "INPUT",
+      "messages": [
+        "Gracias {{nombre_cliente}}, ahora dime ¿cuál es tu dirección y referencias?"
+      ],
+      "position": {
+        "x": 1010,
+        "y": 1200
+      },
+      "targetNodeId": "node-red-catalog",
+      "variableName": "direccion_nueva"
+    },
+    {
+      "id": "node-1790114024125",
+      "url": "/pedidos",
+      "text": "Procesando orden...",
+      "type": "WEBHOOK",
+      "method": "POST",
+      "messages": [
+        "Procesando orden..."
+      ],
+      "position": {
+        "x": 10,
+        "y": 2400
+      },
+      "errorNodeId": "node-final-error",
+      "successNodeId": "node-horario-check",
+      "payloadTemplate": "{\n  \"telefono\": \"{{telefono}}\",\n  \"nombre\": \"{{nombre}}\",\n  \"direccion\": \"{{direccion_nueva}}\",\n  \"detalle\": [\n    {\n      \"producto_id\": {{producto_elegido}},\n      \"cantidad\": {{cantidad}},\n      \"precio\": \"{{producto_elegido_item.precio}}\"\n    }\n  ]\n}"
+    },
+    {
+      "id": "node-1790115871394",
+      "text": "\"¡Claro! Aquí tienes nuestros productos disponibles hoy:\"",
+      "type": "DYNAMIC_MENU",
+      "messages": [
+        "\"¡Claro! Aquí tienes nuestros productos disponibles hoy:\""
+      ],
+      "position": {
+        "x": 510,
+        "y": 1600
+      },
+      "valueKey": "id",
+      "targetNodeId": "node-1790115906983",
+      "variableName": "producto_elegido",
+      "arrayVariable": "catalogo",
+      "titleTemplate": "{{nombre}} - ${{precio}}"
+    },
+    {
+      "id": "node-1790115906983",
+      "text": "Excelente elección. ¿Cuántos vas a querer?",
+      "type": "INPUT",
+      "messages": [
+        "Excelente elección. ¿Cuántos vas a querer?"
+      ],
+      "position": {
+        "x": 510,
+        "y": 2000
+      },
+      "targetNodeId": "node-cart-loop",
+      "variableName": "cantidad"
+    },
+    {
+      "id": "node-1790116158229",
+      "url": "/pedidos",
+      "text": "Procesando orden...",
+      "type": "WEBHOOK",
+      "method": "POST",
+      "messages": [
+        "Procesando orden..."
+      ],
+      "position": {
+        "x": 510,
+        "y": 2400
+      },
+      "errorNodeId": "node-final-error",
+      "successNodeId": "node-horario-check",
+      "payloadTemplate": "{\n  \"telefono\": \"{{telefono}}\",\n  \"nombre\": \"{{nombre}}\",\n  \"direccion\": \"{{direccion_nueva}}\",\n  \"detalle\": [\n    {\n      \"producto_id\": {{producto_elegido}},\n      \"cantidad\": {{cantidad}},\n      \"precio\": \"{{producto_elegido_item.precio}}\"\n    }\n  ]\n}"
+    },
+    {
+      "id": "node-red-catalog",
+      "text": "¡Perfecto! Aquí tienes nuestros productos disponibles hoy:",
+      "type": "DYNAMIC_MENU",
+      "messages": [
+        "¡Perfecto! Aquí tienes nuestros productos disponibles hoy:"
+      ],
+      "position": {
+        "x": 1010,
+        "y": 1600
+      },
+      "valueKey": "id",
+      "targetNodeId": "node-red-quantity",
+      "variableName": "producto_elegido",
+      "arrayVariable": "catalogo",
+      "titleTemplate": "{{nombre}} - ${{precio}}"
+    },
+    {
+      "id": "node-red-quantity",
+      "text": "Excelente elección. ¿Cuántos vas a querer?",
+      "type": "INPUT",
+      "messages": [
+        "Excelente elección. ¿Cuántos vas a querer?"
+      ],
+      "position": {
+        "x": 1010,
+        "y": 2000
+      },
+      "targetNodeId": "node-cart-loop",
+      "variableName": "cantidad"
+    },
+    {
+      "id": "node-webhook-final",
+      "url": "/pedidos",
+      "text": "Procesando orden...",
+      "type": "WEBHOOK",
+      "method": "POST",
+      "messages": [
+        "Procesando orden..."
+      ],
+      "position": {
+        "x": 1484,
+        "y": 2884
+      },
+      "errorNodeId": "node-final-error",
+      "successNodeId": "node-horario-check",
+      "payloadTemplate": "{\n  \"telefono\": \"{{telefono}}\",\n  \"nombre\": \"{{nombre_cliente}}\",\n  \"direccion\": \"{{direccion_nueva}}\",\n  \"ubicacion\": \"\",\n  \"detalle\": {{carrito}}\n}"
+    },
+    {
+      "id": "node-final-error",
+      "text": "Hubo un problema procesando tu pedido. Por favor intenta de nuevo en unos minutos o escribe 'humano'.",
+      "type": "MESSAGE",
+      "messages": [
+        "Hubo un problema procesando tu pedido. Por favor intenta de nuevo en unos minutos o escribe 'humano'."
+      ],
+      "position": {
+        "x": 1020,
+        "y": 2800
+      }
+    },
+    {
+      "id": "node-name-input",
+      "text": "¡Hola! Veo que es tu primer pedido. Para registrarte, ¿cuál es tu nombre y apellido?",
+      "type": "INPUT",
+      "messages": [
+        "¡Hola! Veo que es tu primer pedido. Para registrarte, ¿cuál es tu nombre y apellido?"
+      ],
+      "position": {
+        "x": 1010,
+        "y": 1050
+      },
+      "targetNodeId": "node-e-1790113969586",
+      "variableName": "nombre_cliente"
+    },
+    {
+      "id": "node-cart-loop",
+      "text": "¿Deseas agregar otro producto a tu pedido?",
+      "type": "MENU",
+      "options": [
+        {
+          "id": "opt-loop-yes",
+          "label": "Sí, agregar otro",
+          "targetNodeId": "node-red-catalog"
+        },
+        {
+          "id": "opt-loop-no",
+          "label": "No, finalizar pedido",
+          "targetNodeId": "node-cart-ticket"
+        }
+      ],
+      "messages": [
+        "¿Deseas agregar otro producto a tu pedido?"
+      ],
+      "position": {
+        "x": 1044,
+        "y": 2378
+      }
+    },
+    {
+      "id": "node-cart-ticket",
+      "text": "¡Perfecto {{nombre_cliente}}! Este es tu resumen:\n\n{{resumen_carrito}}",
+      "type": "MESSAGE",
+      "messages": [
+        "¡Perfecto {{nombre_cliente}}! Este es tu resumen:\n\n{{resumen_carrito}}"
+      ],
+      "position": {
+        "x": 1629.437385559082,
+        "y": 2558
+      },
+      "targetNodeId": "node-webhook-final"
+    },
+    {
+      "id": "node-horario-check",
+      "type": "CONDITION",
+      "position": {
+        "x": 1200,
+        "y": 3000
+      },
+      "errorNodeId": "node-final-success",
+      "successNodeId": "node-horario-cerrado",
+      "conditionValue": "true",
+      "conditionOperator": "equals",
+      "conditionVariable": "fuera_de_horario"
+    },
+    {
+      "id": "node-horario-cerrado",
+      "text": "{{mensaje_horario}} (Código: {{codigo_rastreo}})",
+      "type": "MESSAGE",
+      "messages": [
+        "{{mensaje_horario}}\nCódigo de rastreo: {{codigo_rastreo}}"
+      ],
+      "position": {
+        "x": 1400,
+        "y": 3200
+      },
+      "targetNodeId": "node-otra-cosa"
+    },
+    {
+      "id": "node-horario-resolve",
+      "text": "Cerrando ticket por horario",
+      "type": "RESOLVE",
+      "messages": [],
+      "position": {
+        "x": 1400,
+        "y": 3400
+      }
+    },
+    {
+      "id": "node-final-success",
+      "text": "{{datos_normales}}",
+      "type": "MESSAGE",
+      "messages": [
+        "{{datos_normales}}"
+      ],
+      "position": {
+        "x": 1000,
+        "y": 3200
+      },
+      "targetNodeId": "node-otra-cosa"
+    },
+    {
+      "id": "node-contexto-horario-check",
+      "type": "CONDITION",
+      "position": {
+        "x": 960,
+        "y": 400
+      },
+      "errorNodeId": "node-s-1790113889755",
+      "successNodeId": "node-horario-aviso",
+      "conditionValue": "true",
+      "conditionOperator": "equals",
+      "conditionVariable": "fuera_de_horario"
+    },
+    {
+      "id": "node-horario-aviso",
+      "text": "{{mensaje_horario}}",
+      "type": "MENU",
+      "options": [
+        {
+          "id": "opt-horario-si",
+          "label": "Sí, agendar pedido",
+          "targetNodeId": "node-s-1790113889755"
+        },
+        {
+          "id": "opt-horario-no",
+          "label": "No, cancelar",
+          "targetNodeId": "node-horario-cancelado"
+        }
+      ],
+      "messages": [
+        "{{mensaje_horario}}"
+      ],
+      "position": {
+        "x": 1160,
+        "y": 400
+      }
+    },
+    {
+      "id": "node-horario-cancelado",
+      "text": "Entendido. Estaremos encantados de atenderte cuando regresemos. ¡Hasta pronto!",
+      "type": "MESSAGE",
+      "messages": [
+        "Entendido. Estaremos encantados de atenderte cuando regresemos. ¡Hasta pronto!"
+      ],
+      "position": {
+        "x": 1360,
+        "y": 400
+      },
+      "targetNodeId": "node-horario-resolve"
+    },
+    {
+      "id": "node-otra-cosa",
+      "type": "MENU",
+      "text": "¿Puedo ayudarte con algo más?",
+      "messages": [
+        "¿Puedo ayudarte con algo más?"
+      ],
+      "options": [
+        {
+          "id": "opt-otra-si",
+          "label": "Sí",
+          "targetNodeId": "node-root"
+        },
+        {
+          "id": "opt-otra-no",
+          "label": "No",
+          "targetNodeId": "node-despedida-final"
+        }
+      ],
+      "position": {
+        "x": 1200,
+        "y": 3600
+      }
+    },
+    {
+      "id": "node-despedida-final",
+      "type": "MESSAGE",
+      "text": "¡Perfecto! Fue un placer atenderte. ¡Que tengas un excelente día!",
+      "messages": [
+        "¡Perfecto! Fue un placer atenderte. ¡Que tengas un excelente día!"
+      ],
+      "targetNodeId": "node-horario-resolve",
+      "position": {
+        "x": 1200,
+        "y": 3800
+      }
+    }
+  ],
+  "rootNodeId": "node-root"
+}
