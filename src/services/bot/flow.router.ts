@@ -107,7 +107,7 @@ export class FlowRouter {
     }
 
     if (node.type === 'WEBHOOK') {
-      require('fs').appendFileSync('/Users/efrendz/Downloads/chatwoot/chatbot-saas/backend/debug.log', "ENTERED WEBHOOK\n");
+      
       try {
         const metadata = typeof session!.sessionMetadata === 'string' ? JSON.parse(session!.sessionMetadata) : (session!.sessionMetadata || {});
         
@@ -164,7 +164,7 @@ export class FlowRouter {
         }
 
         // Ejecutar petición HTTP
-        require('fs').appendFileSync('/Users/efrendz/Downloads/chatwoot/chatbot-saas/backend/debug.log', 'FETCHING: ' + finalUrl + '\n'); const response = await fetch(finalUrl, {
+         const response = await fetch(finalUrl, {
           method: node.method || 'POST',
           headers: { 'Content-Type': 'application/json', ...customHeaders },
           body: bodyData
@@ -180,7 +180,7 @@ export class FlowRouter {
         
         const updatedMetadata = { ...metadata, ...responseData };
 
-        require('fs').appendFileSync('/Users/efrendz/Downloads/chatwoot/chatbot-saas/backend/debug.log', 'RESPONSE OK!\n'); if (response.ok) {
+         if (response.ok) {
           await prisma.conversationSession.update({
             where: { id: sessionId },
             data: { 
@@ -200,7 +200,7 @@ export class FlowRouter {
           });
         }
       } catch (err) {
-        require('fs').appendFileSync('/Users/efrendz/Downloads/chatwoot/chatbot-saas/backend/debug.log', 'ERROR: ' + (err as Error).message + '\n'); console.error('[FlowRouter] Webhook error:', err);
+         console.error('[FlowRouter] Webhook error:', err);
         await prisma.conversationSession.update({
           where: { id: sessionId },
           data: { currentNodeId: node.errorNodeId, consecutiveErrors: 0 }
