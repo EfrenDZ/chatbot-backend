@@ -448,8 +448,37 @@ export class FlowRouter {
 
     
     
+    
     // Guardar la variable
     metadata[varName] = finalValueToSave;
+    
+    // Auto-build carrito if the variable was 'cantidad'
+    if (varName === 'cantidad') {
+      const cantidadNum = parseInt(finalValueToSave);
+      const itemSeleccionado = metadata['producto_elegido_item'];
+      if (!isNaN(cantidadNum) && itemSeleccionado) {
+        if (!Array.isArray(metadata.carrito)) metadata.carrito = [];
+        const precioNum = parseFloat(itemSeleccionado.precio || 0);
+        const subtotal = precioNum * cantidadNum;
+        metadata.carrito.push({
+          producto_id: itemSeleccionado.id,
+          nombre: itemSeleccionado.nombre,
+          precio: itemSeleccionado.precio,
+          cantidad: cantidadNum,
+          subtotal: subtotal
+        });
+        
+        let resumen = '';
+        let total = 0;
+        metadata.carrito.forEach((p: any) => {
+          resumen += p.cantidad + 'x ' + p.nombre + ' a $' + p.precio + ' c/u\n';
+          total += p.subtotal;
+        });
+        resumen += '\nTotal: $' + total.toFixed(2);
+        metadata.resumen_carrito = resumen;
+      }
+    }
+
 
             await prisma.conversationSession.update({
       where: { id: session.id },
