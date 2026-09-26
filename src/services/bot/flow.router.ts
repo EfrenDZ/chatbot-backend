@@ -37,7 +37,7 @@ export class FlowRouter {
     finalMessageText = (finalMessageText || '').replace(/\{\{([^}]+)\}\}/g, (match: string, key: string) => {
       const path = key.trim();
       const val = path.split('.').reduce((acc: any, part: string) => acc && acc[part] !== undefined ? acc[part] : undefined, metadata);
-      return val !== undefined && val !== null ? String(val) : match;
+      return val !== undefined && val !== null ? String(val) : 'null';
     });
 
     if (node.type === 'RESTART') {
@@ -158,7 +158,7 @@ export class FlowRouter {
             const path = key.trim();
             if (path === 'carrito' && metadata.carrito) return JSON.stringify(metadata.carrito);
             const val = path.split('.').reduce((acc: any, part: string) => acc && acc[part] !== undefined ? acc[part] : undefined, payload);
-            return val !== undefined && val !== null ? String(val) : match;
+            return val !== undefined && val !== null ? String(val) : 'null';
           });
           bodyData = interpolated;
         }
