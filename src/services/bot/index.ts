@@ -21,11 +21,11 @@ export class BotEngine {
 
     const [session, isNew] = await SessionManager.getOrCreateSession(account.id, cwConversation.id, sender.phone_number || sender.email);
 
-    const hoursInactive = (Date.now() - session.updatedAt.getTime()) / (1000 * 60 * 60);
-    const timeoutHours = account.botConfig.sessionTimeoutHours || 24;
+    const minutesInactive = (Date.now() - session.updatedAt.getTime()) / (1000 * 60);
+    const timeoutMins = account.botConfig.sessionTimeoutMinutes || 1440;
     
-    if (hoursInactive > timeoutHours) {
-      console.log(`[BotEngine] Sesión ${session.id} expirada (>${timeoutHours}h). Reiniciando.`);
+    if (minutesInactive > timeoutMins) {
+      console.log(`[BotEngine] Sesión ${session.id} expirada (>${timeoutMins}m). Reiniciando.`);
       await SessionManager.resetSession(session.id, account.botConfig);
       session.currentNodeId = (account.botConfig.flowGraph as any).rootNodeId;
       session.status = 'BOT_HANDLING';
