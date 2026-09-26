@@ -32,7 +32,7 @@ export class BotEngine {
       
       if (account.botConfig.welcomeMessage && account.chatwootAccessToken) {
         await ChatwootService.sendMessage(account.chatwootApiUrl, account.chatwootAccessToken, account.chatwootAccountId, cwConversation.id, account.botConfig.welcomeMessage);
-        await delay(2500);
+        await delay(500);
       }
       await FlowRouter.sendCurrentNode(account, account.botConfig, session.id, cwConversation.id);
       return;
@@ -45,7 +45,7 @@ export class BotEngine {
       
       if (account.botConfig.welcomeMessage && account.chatwootAccessToken) {
         await ChatwootService.sendMessage(account.chatwootApiUrl, account.chatwootAccessToken, account.chatwootAccountId, cwConversation.id, account.botConfig.welcomeMessage);
-        await delay(2500);
+        await delay(500);
       }
       await FlowRouter.sendCurrentNode(account, account.botConfig, session.id, cwConversation.id);
       return;
@@ -63,7 +63,7 @@ export class BotEngine {
     if (isNew) {
       if (account.botConfig.welcomeMessage && account.chatwootAccessToken) {
         await ChatwootService.sendMessage(account.chatwootApiUrl, account.chatwootAccessToken, account.chatwootAccountId, cwConversation.id, account.botConfig.welcomeMessage);
-        await delay(2500);
+        await delay(500);
       }
       await FlowRouter.sendCurrentNode(account, account.botConfig, session.id, cwConversation.id);
       return;

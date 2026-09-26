@@ -26,7 +26,7 @@ export class FlowRouter {
           cwConvId,
           messages[i]
         );
-        await delay(2500);
+        await delay(500);
       }
     }
 
@@ -224,7 +224,7 @@ export class FlowRouter {
           cwConvId,
           finalMessageText
         );
-        await delay(2000);
+        await delay(500);
       }
       return;
     }
@@ -261,7 +261,7 @@ export class FlowRouter {
             finalMessageText + '\n(No hay opciones disponibles)'
           );
         }
-        await delay(2500);
+        await delay(500);
       }
       return;
     }
@@ -284,7 +284,7 @@ export class FlowRouter {
             finalMessageText,
             { contentType: 'input_select', contentAttributes: { items } }
           );
-          await delay(2500);
+          await delay(500);
         }
         return;
       }
@@ -302,7 +302,7 @@ export class FlowRouter {
           cwConvId,
           textMenu
         );
-        await delay(2000);
+        await delay(500);
       }
       return;
     }
@@ -315,7 +315,7 @@ export class FlowRouter {
         cwConvId,
         finalMessageText
       );
-      await delay(2000);
+      await delay(500);
     }
 
     if (node.targetNodeId) {
@@ -411,7 +411,7 @@ export class FlowRouter {
         cwConvId,
         config.fallbackMessage
       );
-      await delay(2000);
+      await delay(500);
       await this.sendCurrentNode(account, config, session.id, cwConvId);
     }
   }
