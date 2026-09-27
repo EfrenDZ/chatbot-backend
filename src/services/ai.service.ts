@@ -7,6 +7,7 @@ export interface AiResponse {
   text: string;
   isHandoff: boolean;
   isResolved: boolean;
+  isOrderStarted: boolean;
 }
 
 export class AiService {
@@ -56,6 +57,10 @@ export class AiService {
           description: 'Cierra la conversación. Úsala SOLO cuando el usuario se despida definitivamente o indique claramente que ya no necesita más ayuda.',
           parameters: z.object({}),
         },
+        iniciar_pedido: {
+          description: 'Inicia el flujo guiado paso a paso para crear un nuevo pedido. Úsala cuando el usuario indique que desea realizar un pedido o comprar productos.',
+          parameters: z.object({}),
+        }
       };
 
       for (const dt of dynamicTools) {
@@ -109,6 +114,7 @@ export class AiService {
 
       let isHandoff = false;
       let isResolved = false;
+      let isOrderStarted = false;
 
       // El Vercel AI SDK no expone los toolCalls internos del loop si usas maxSteps,
       // pero si el último step fue una herramienta terminal (handoff/resolve), vendrá en toolCalls
@@ -116,6 +122,7 @@ export class AiService {
         for (const tc of toolCalls) {
           if (tc.toolName === 'transferir_a_humano') isHandoff = true;
           if (tc.toolName === 'resolver_conversacion') isResolved = true;
+          if (tc.toolName === 'iniciar_pedido') isOrderStarted = true;
         }
       }
 
@@ -127,11 +134,12 @@ export class AiService {
       return {
         text: finalText,
         isHandoff,
-        isResolved
+        isResolved,
+        isOrderStarted
       };
     } catch (error) {
       console.error('[AiService] Error generando texto:', error);
-      return { text: "[ERROR_IA]", isHandoff: false, isResolved: false };
+      return { text: "[ERROR_IA]", isHandoff: false, isResolved: false, isOrderStarted: false };
     }
   }
 }

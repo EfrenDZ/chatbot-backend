@@ -54,7 +54,7 @@ export class AiOrchestrator {
     });
     promptParts.push(`FECHA Y HORA ACTUAL:\nLa fecha y hora actual es: ${timeString}. Ten esto muy en cuenta para evaluar las horas de trabajo, días hábiles, festivos, y determinar si debes posponer un pedido para el próximo día hábil.`);
 
-    promptParts.push(`INSTRUCCIONES GENERALES:\nBásate estrictamente en la información proporcionada arriba. Si el usuario pregunta algo que no está en tu conocimiento o catálogo, indícale amablemente que no tienes esa información y PREGÚNTALE si desea ser atendido por un asesor humano. Utiliza la herramienta "transferir_a_humano" ÚNICAMENTE si el usuario acepta tu oferta de transferencia, o si el usuario solicita un humano directamente desde el principio.\n\nINSTRUCCIÓN DE AUTO-CIERRE:\nSi el usuario se despide explícitamente (ej. "gracias adios", "eso es todo"), despídete de él de forma cordial y OBLIGATORIAMENTE utiliza la herramienta "resolver_conversacion" para cerrar el chat.`);
+    promptParts.push(`INSTRUCCIONES GENERALES:\nBásate estrictamente en la información proporcionada arriba. Si el usuario pregunta algo que no está en tu conocimiento o catálogo, indícale amablemente que no tienes esa información y PREGÚNTALE si desea ser atendido por un asesor humano. Utiliza la herramienta "transferir_a_humano" ÚNICAMENTE si el usuario acepta tu oferta de transferencia.\n\nINSTRUCCIÓN PARA PEDIDOS:\nSi el usuario indica de cualquier forma que desea hacer un pedido, ordenar, o comprar, DEBES obligatoriamente llamar a la herramienta "iniciar_pedido". Esto lo llevará al sistema automático de pedidos.\n\nINSTRUCCIÓN DE AUTO-CIERRE:\nSi el usuario se despide explícitamente (ej. "gracias adios"), despídete de él y utiliza la herramienta "resolver_conversacion" para cerrar el chat.`);
 
     return promptParts.join('\n\n------------------------\n\n');
   }
@@ -125,6 +125,24 @@ export class AiOrchestrator {
           aiResult.text
         );
       }
+    }
+
+    
+    if (aiResult.isOrderStarted) {
+      console.log(`[BotEngine] La IA decidió iniciar pedido (Tool Call) en sesión ${session.id}`);
+      
+      const targetNodeId = 'node-1790113848738';
+      
+      await prisma.conversationSession.update({
+        where: { id: session.id },
+        data: { currentNodeId: targetNodeId, consecutiveErrors: 0 }
+      });
+      
+      const newSession = await prisma.conversationSession.findUnique({ where: { id: session.id } });
+      if (newSession) {
+        await FlowRouter.sendCurrentNode(account, config, newSession.id, cwConvId);
+      }
+      return;
     }
 
     if (aiResult.isHandoff) {
