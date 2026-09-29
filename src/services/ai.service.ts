@@ -8,6 +8,7 @@ export interface AiResponse {
   isHandoff: boolean;
   isResolved: boolean;
   isOrderStarted: boolean;
+  orderData?: any;
 }
 
 export class AiService {
@@ -58,8 +59,13 @@ export class AiService {
           parameters: z.object({}),
         },
         iniciar_pedido: {
-          description: 'Inicia el flujo guiado paso a paso para crear un nuevo pedido. Úsala cuando el usuario indique que desea realizar un pedido o comprar productos.',
-          parameters: z.object({}),
+          description: 'Crea un pedido. Úsala ÚNICAMENTE cuando el cliente ya te haya dicho la cantidad, el producto y su dirección de entrega.',
+          parameters: z.object({
+            cantidad: z.number().int().positive().describe('Cantidad total de productos.'),
+            producto: z.enum(['Garrafón', 'Garrafón Ciel', 'Botella 355ml', 'Botella 500ml', 'Botella 1L', 'Botella 1.5L']).describe('Producto a pedir.'),
+            direccion: z.string().min(5).describe('Dirección de entrega.'),
+            referencias: z.string().optional().describe('Referencias de la casa.')
+          }),
         }
       };
 
@@ -115,6 +121,7 @@ export class AiService {
       let isHandoff = false;
       let isResolved = false;
       let isOrderStarted = false;
+      let orderData = null;
 
       // El Vercel AI SDK no expone los toolCalls internos del loop si usas maxSteps,
       // pero si el último step fue una herramienta terminal (handoff/resolve), vendrá en toolCalls
@@ -122,7 +129,10 @@ export class AiService {
         for (const tc of toolCalls) {
           if (tc.toolName === 'transferir_a_humano') isHandoff = true;
           if (tc.toolName === 'resolver_conversacion') isResolved = true;
-          if (tc.toolName === 'iniciar_pedido') isOrderStarted = true;
+          if (tc.toolName === 'iniciar_pedido') {
+            isOrderStarted = true;
+            orderData = tc.args;
+          }
         }
       }
 
@@ -135,7 +145,8 @@ export class AiService {
         text: finalText,
         isHandoff,
         isResolved,
-        isOrderStarted
+        isOrderStarted,
+        orderData
       };
     } catch (error) {
       console.error('[AiService] Error generando texto:', error);

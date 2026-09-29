@@ -80,6 +80,37 @@ export class BotEngine {
       return;
     }
 
+    // --- INTERCEPTOR SAAS: QUICK REORDER (1-CLIC) ---
+    const ftUrl = (account.botConfig as any).fastTrackWebhookUrl;
+    const ftKw = (account.botConfig as any).fastTrackKeywords || [];
+    if (ftUrl && ftKw.some((k: string) => userMessage.includes(k))) {
+      console.log(`[BotEngine] Interceptor 1-Clic activado para sesión ${session.id}`);
+      try {
+        const ftRes = await fetch(ftUrl, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ phone: sender.phone_number, email: sender.email, accountId: account.id })
+        });
+        if (ftRes.ok) {
+          const ftData = await ftRes.json();
+          if (ftData && ftData.hasPreviousOrder && ftData.interactiveMessagePayload) {
+            // El webhook del inquilino (ej. AguaCero) nos devuelve el JSON exacto del botón interactivo
+            if (account.chatwootAccessToken) {
+               await fetch(`${account.chatwootApiUrl}/api/v1/accounts/${account.chatwootAccountId}/conversations/${cwConversation.id}/messages`, {
+                 method: 'POST',
+                 headers: { 'api_access_token': account.chatwootAccessToken, 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ content: ftData.fallbackText, message_type: 'outgoing', content_attributes: ftData.interactiveMessagePayload })
+               });
+            }
+            return; // MATAMOS EL FLUJO: Gemini no se despierta, cero costos de IA.
+          }
+        }
+      } catch (err) {
+        console.error('[BotEngine] Error en Interceptor FastTrack:', err);
+      }
+    }
+    // --- FIN INTERCEPTOR ---
+
 
     const flowGraph = account.botConfig.flowGraph as any;
     const currentNodeId = session.currentNodeId || flowGraph.rootNodeId;

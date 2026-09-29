@@ -130,6 +130,8 @@ export class AiOrchestrator {
     
     if (aiResult.isOrderStarted) {
       console.log(`[BotEngine] La IA decidió iniciar pedido (Tool Call) en sesión ${session.id}`);
+      console.log(`📦 DATOS EXTRAÍDOS POR LA IA:`, aiResult.orderData);
+      // TODO: Aquí puedes enviar "aiResult.orderData" directo a AguaCero (/api/webhooks/bot/pedidos)
       
       const targetNodeId = 'node-1790113848738';
       

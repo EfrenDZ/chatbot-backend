@@ -53,6 +53,10 @@ model BotConfig {
   
   resetKeywords          String[] @default(["menu", "inicio", "reiniciar", "empezar"]) @map("reset_keywords")
   handoffKeywords        String[] @default(["humano", "agente", "asesor", "persona"]) @map("handoff_keywords")
+  
+  // -- SAAS FastTrack Interceptor (1-Click Reorder) --
+  fastTrackWebhookUrl    String?  @map("fast_track_webhook_url")
+  fastTrackKeywords      String[] @default([]) @map("fast_track_keywords")
   maxConsecutiveErrors   Int      @default(2) @map("max_consecutive_errors")
   sessionTimeoutMinutes Int      @default(1440) @map("session_timeout_minutes")
   
