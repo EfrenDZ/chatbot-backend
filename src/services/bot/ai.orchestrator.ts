@@ -5,7 +5,7 @@ import { ChatwootService } from '../chatwoot.service';
 import { FlowRouter } from './flow.router';
 
 export class AiOrchestrator {
-  static buildSystemPrompt(config: any): string {
+  static buildSystemPrompt(config: any, sessionMetadata?: any): string {
     if (config.aiPromptMode === 'FREE') {
       return config.systemPrompt || '';
     }
@@ -28,13 +28,13 @@ export class AiOrchestrator {
     }
 
     if (knowledge.catalog && knowledge.catalog.length > 0) {
-      const catText = knowledge.catalog.map((c: any) => `- Producto/Servicio: ${c.name}\n  Precio: ${c.price}\n  Detalles: ${c.description}`).join('\n\n');
+      const catText = knowledge.catalog.map((c: any) => `- Producto/Servicio: ${c.name}\n  Precio: $${c.price}\n  Detalles: ${c.description || 'Sin descripción'}`).join('\n\n');
       promptParts.push(`CATÁLOGO DE PRODUCTOS / SERVICIOS:\n${catText}`);
     }
 
     if (knowledge.faqs && knowledge.faqs.length > 0) {
       const faqText = knowledge.faqs.map((f: any) => `Q: ${f.question}\nA: ${f.answer}`).join('\n\n');
-      promptParts.push(`PREGUNTAS FRECUENTES (Utiliza esta información para responder a clientes):\n${faqText}`);
+      promptParts.push(`PREGUNTAS FRECUENTES:\n${faqText}`);
     }
 
     if (knowledge.branches && knowledge.branches.length > 0) {
@@ -43,7 +43,31 @@ export class AiOrchestrator {
     }
 
     if (knowledge.extraContext) {
-      promptParts.push(`CONTEXTO ADICIONAL / NOTAS EXTRA:\n${knowledge.extraContext}`);
+      promptParts.push(`CONTEXTO ADICIONAL:\n${knowledge.extraContext}`);
+    }
+
+    if (sessionMetadata) {
+      let metaParts = [];
+      if (sessionMetadata.cliente) {
+        const cl = sessionMetadata.cliente;
+        metaParts.push(`- Nombre del cliente: ${cl.nombre || 'No registrado'}`);
+        if (cl.direccion_predeterminada || cl.direccion) {
+          metaParts.push(`- Dirección habitual registrada: ${cl.direccion_predeterminada || cl.direccion}`);
+        }
+        if (cl.referencias_predeterminadas || cl.referencias) {
+          metaParts.push(`- Referencias registradas: ${cl.referencias_predeterminadas || cl.referencias}`);
+        }
+      }
+      if (sessionMetadata.pedidos_activos && Array.isArray(sessionMetadata.pedidos_activos) && sessionMetadata.pedidos_activos.length > 0) {
+        const pText = sessionMetadata.pedidos_activos.map((p: any) => `* Pedido #${p.id || ''} (Código: ${p.codigo_rastreo || p.codigo}) - Estado: ${p.estado_texto || p.estado} - Total: $${p.total}`).join('\n');
+        metaParts.push(`- Pedidos activos del cliente:\n${pText}`);
+      }
+      if (sessionMetadata.fuera_de_horario) {
+        metaParts.push(`- AVISO DE HORARIO: Actualmente estamos cerrados. Próximo día hábil: ${sessionMetadata.mensaje_horario || 'el siguiente día laboral'}. Si el cliente pide productos, aclárale que su entrega se agendará para ese horario.`);
+      }
+      if (metaParts.length > 0) {
+        promptParts.push(`INFORMACIÓN Y CONTEXTO DEL CLIENTE ACTUAL:\n${metaParts.join('\n')}`);
+      }
     }
 
     const now = new Date();
@@ -52,9 +76,19 @@ export class AiOrchestrator {
       dateStyle: 'full', 
       timeStyle: 'long' 
     });
-    promptParts.push(`FECHA Y HORA ACTUAL:\nLa fecha y hora actual es: ${timeString}. Ten esto muy en cuenta para evaluar las horas de trabajo, días hábiles, festivos, y determinar si debes posponer un pedido para el próximo día hábil.`);
+    promptParts.push(`FECHA Y HORA ACTUAL:\nLa fecha y hora actual es: ${timeString}.`);
 
-    promptParts.push(`INSTRUCCIONES GENERALES:\nBásate estrictamente en la información proporcionada arriba. Si el usuario pregunta algo que no está en tu conocimiento o catálogo, indícale amablemente que no tienes esa información y PREGÚNTALE si desea ser atendido por un asesor humano. Utiliza la herramienta "transferir_a_humano" ÚNICAMENTE si el usuario acepta tu oferta de transferencia.\n\nINSTRUCCIÓN PARA PEDIDOS:\nSi el usuario indica de cualquier forma que desea hacer un pedido, ordenar, o comprar, DEBES obligatoriamente llamar a la herramienta "iniciar_pedido". Esto lo llevará al sistema automático de pedidos.\n\nINSTRUCCIÓN DE AUTO-CIERRE:\nSi el usuario se despide explícitamente (ej. "gracias adios"), despídete de él y utiliza la herramienta "resolver_conversacion" para cerrar el chat.`);
+    promptParts.push(`INSTRUCCIONES DE ATENCIÓN Y TOMA DE PEDIDOS (EFICIENCIA MÁXIMA EN MENSAJES):
+1. TOMA DE PEDIDOS (SLOT-FILLING):
+   - Si el cliente menciona productos pero no cantidades, pregunta las cantidades de forma concisa.
+   - DIRECCIÓN: Si el cliente ya tiene una dirección registrada en su contexto, CONFÍRMALA brevemente ("¿Te lo mandamos a tu dirección habitual en [Dirección]?"). NUNCA le pidas volver a escribir toda su dirección si ya la tiene guardada, a menos que el cliente indique que quiere enviarlo a otro lugar o sea un cliente nuevo sin dirección.
+   - En cuanto tengas claros los productos, cantidades y confirmada la dirección, llama INMEDIATAMENTE a la herramienta 'crear_pedido'.
+2. CANCELACIÓN DE PEDIDOS:
+   - Si el cliente solicita cancelar un pedido, utiliza la herramienta 'cancelar_pedido' indicando el código o ID correspondiente si lo tiene.
+3. PREGUNTAS NO RELACIONADAS O ASESOR:
+   - Si el usuario pregunta algo fuera de tu alcance o pide hablar con un humano, utiliza 'transferir_a_humano'.
+4. AUTO-CIERRE:
+   - Si el cliente se despide ("gracias adios", "todo bien gracias"), despídete cordialmente y utiliza 'resolver_conversacion'.`);
 
     return promptParts.join('\n\n------------------------\n\n');
   }
@@ -77,6 +111,38 @@ export class AiOrchestrator {
       return;
     }
 
+    let metadata: any = typeof session.sessionMetadata === 'string'
+      ? JSON.parse(session.sessionMetadata)
+      : (session.sessionMetadata || {});
+
+    // Inyección de contexto dinámico desde apiBaseUrl/contexto
+    if (config.apiBaseUrl && (!metadata || !metadata.cliente)) {
+      try {
+        let headers: any = { 'Content-Type': 'application/json' };
+        if (config.apiHeaders) {
+          try {
+            const parsed = typeof config.apiHeaders === 'string' ? JSON.parse(config.apiHeaders) : config.apiHeaders;
+            headers = { ...headers, ...parsed };
+          } catch (e) {}
+        }
+        const ctxRes = await fetch(`${config.apiBaseUrl}/contexto`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ telefono: session.contactIdentifier })
+        });
+        if (ctxRes.ok) {
+          const ctxData = await ctxRes.json();
+          metadata = { ...metadata, ...ctxData };
+          await prisma.conversationSession.update({
+            where: { id: session.id },
+            data: { sessionMetadata: metadata }
+          });
+        }
+      } catch (err) {
+        console.error('[AiOrchestrator] Error obteniendo /contexto dinámico:', err);
+      }
+    }
+
     const recentLogs = await prisma.messageLog.findMany({
       where: { conversationSessionId: session.id, senderType: { in: ['USER', 'BOT_AI'] } },
       orderBy: { createdAt: 'desc' },
@@ -88,11 +154,11 @@ export class AiOrchestrator {
       content: log.content,
     })) as any[];
 
-    let finalSystemPrompt = this.buildSystemPrompt(config);
+    let finalSystemPrompt = this.buildSystemPrompt(config, metadata);
     const messagesLeft = config.maxAiMessages - newAiCount;
     
     if (messagesLeft <= config.aiWrapUpMessages) {
-      finalSystemPrompt += `\n\n[IMPORTANTE]: Te quedan ${messagesLeft} mensajes con el usuario antes de que el sistema fuerce una transferencia. Intenta cerrar la duda ahora o indícale amablemente que lo vas a transferir a un asesor humano utilizando la herramienta correspondiente.`;
+      finalSystemPrompt += `\n\n[IMPORTANTE]: Te quedan ${messagesLeft} mensajes con el usuario antes de transferir a un asesor.`;
     }
 
     const aiResult = await AiService.getReply(
@@ -105,7 +171,7 @@ export class AiOrchestrator {
 
     if (aiResult.text.includes('[ERROR_IA]')) {
       console.log(`[BotEngine] Falla en IA detectada en la sesión ${session.id}.`);
-      const emergencyMsg = "En este momento te comunicaré con uno de nuestros asesores para que te atienda personalmente. Dame un momento.";
+      const emergencyMsg = "En este momento te comunicaré con uno de nuestros asesores para atenderte personalmente.";
       await FlowRouter.executeHandoff(account, session, cwConvId, emergencyMsg);
       return;
     }
@@ -127,30 +193,121 @@ export class AiOrchestrator {
       }
     }
 
-    
-    if (aiResult.isOrderStarted) {
-      console.log(`[BotEngine] La IA decidió iniciar pedido (Tool Call) en sesión ${session.id}`);
-      console.log(`📦 DATOS EXTRAÍDOS POR LA IA:`, aiResult.orderData);
-      // TODO: Aquí puedes enviar "aiResult.orderData" directo a AguaCero (/api/webhooks/bot/pedidos)
+    // TOOL CALL: CREAR PEDIDO
+    if (aiResult.isOrderCreated && config.apiBaseUrl) {
+      console.log(`[BotEngine] IA ejecutó crear_pedido en sesión ${session.id}`, aiResult.orderData);
       
-      const targetNodeId = 'node-1790113848738';
-      
-      await prisma.conversationSession.update({
-        where: { id: session.id },
-        data: { currentNodeId: targetNodeId, consecutiveErrors: 0 }
+      const catalog = (config.aiKnowledge as any)?.catalog || [];
+      const items = aiResult.orderData?.items || [];
+      const detalle = items.map((it: any) => {
+        const itemProd = (it.producto || '').toLowerCase().trim();
+        const matched = catalog.find((c: any) => {
+          const catName = (c.name || '').toLowerCase().trim();
+          return catName === itemProd || itemProd.includes(catName) || catName.includes(itemProd);
+        });
+        return {
+          producto_id: matched?.id || null,
+          nombre_producto: matched?.name || it.producto,
+          cantidad: it.cantidad,
+          precio: matched?.price ? parseFloat(matched.price) : 0,
+          notas: it.notas
+        };
       });
+
+      let headers: any = { 'Content-Type': 'application/json' };
+      if (config.apiHeaders) {
+        try {
+          const parsed = typeof config.apiHeaders === 'string' ? JSON.parse(config.apiHeaders) : config.apiHeaders;
+          headers = { ...headers, ...parsed };
+        } catch (e) {}
+      }
+
+      const clientInfo = metadata.cliente || {};
+      const orderPayload = {
+        telefono: session.contactIdentifier,
+        nombre: clientInfo.nombre || 'Cliente WhatsApp',
+        direccion: aiResult.orderData?.direccion || clientInfo.direccion_predeterminada || clientInfo.direccion,
+        referencias: aiResult.orderData?.referencias || clientInfo.referencias_predeterminadas || clientInfo.referencias,
+        notas: aiResult.orderData?.notas_generales,
+        detalle
+      };
+
+      try {
+        const orderRes = await fetch(`${config.apiBaseUrl}/pedidos`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(orderPayload)
+        });
+        const orderData = await orderRes.json();
+        if (orderRes.ok && orderData.status === 'success') {
+          const confirmation = orderData.mensaje || `¡Listo! Tu pedido ha sido confirmado. Código de seguimiento: ${orderData.codigo_rastreo || ''}`;
+          if (account.chatwootAccessToken) {
+            await ChatwootService.sendMessage(
+              account.chatwootApiUrl,
+              account.chatwootAccessToken,
+              account.chatwootAccountId,
+              cwConvId,
+              confirmation
+            );
+          }
+        } else {
+          const errMsg = orderData.mensaje || orderData.msg || "Hubo un inconveniente al registrar el pedido.";
+          await FlowRouter.executeHandoff(account, session, cwConvId, `${errMsg} Te comunico con un asesor.`);
+        }
+      } catch (err) {
+        console.error('[BotEngine] Error enviando pedido a webhook:', err);
+        await FlowRouter.executeHandoff(account, session, cwConvId, "Error de conexión al registrar tu pedido. Te comunico con un asesor.");
+      }
+      return;
+    }
+
+    // TOOL CALL: CANCELAR PEDIDO
+    if (aiResult.isOrderCancelled && config.apiBaseUrl) {
+      console.log(`[BotEngine] IA ejecutó cancelar_pedido en sesión ${session.id}`, aiResult.cancelData);
       
-      const newSession = await prisma.conversationSession.findUnique({ where: { id: session.id } });
-      if (newSession) {
-        await FlowRouter.sendCurrentNode(account, config, newSession.id, cwConvId);
+      let headers: any = { 'Content-Type': 'application/json' };
+      if (config.apiHeaders) {
+        try {
+          const parsed = typeof config.apiHeaders === 'string' ? JSON.parse(config.apiHeaders) : config.apiHeaders;
+          headers = { ...headers, ...parsed };
+        } catch (e) {}
+      }
+
+      try {
+        const cancelRes = await fetch(`${config.apiBaseUrl}/pedidos/cancelar`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            telefono: session.contactIdentifier,
+            codigo: aiResult.cancelData?.codigo_pedido,
+            motivo: aiResult.cancelData?.motivo
+          })
+        });
+        const cancelData = await cancelRes.json();
+        if (cancelRes.ok && cancelData.status === 'success') {
+          const cancelMsg = cancelData.mensaje || "Tu pedido ha sido cancelado con éxito.";
+          if (account.chatwootAccessToken) {
+            await ChatwootService.sendMessage(
+              account.chatwootApiUrl,
+              account.chatwootAccessToken,
+              account.chatwootAccountId,
+              cwConvId,
+              cancelMsg
+            );
+          }
+        } else {
+          const reason = cancelData.mensaje || cancelData.msg || "El pedido ya no se puede cancelar automáticamente.";
+          await FlowRouter.executeHandoff(account, session, cwConvId, `${reason} Te comunico con un asesor.`);
+        }
+      } catch (err) {
+        console.error('[BotEngine] Error cancelando pedido:', err);
+        await FlowRouter.executeHandoff(account, session, cwConvId, "Error al cancelar el pedido. Te comunico con un asesor.");
       }
       return;
     }
 
     if (aiResult.isHandoff) {
       console.log(`[BotEngine] La IA decidió transferir a humano (Tool Call) en sesión ${session.id}`);
-      // Ejecutamos handoff pero SIN el mensaje custom de la IA, a menos que queramos usar el texto que haya dicho
-      // Si la IA ya dijo algo ("Te transfiero"), se envió arriba. Si no dijo nada, pasamos undefined para que use el default.
       const handoffMsg = aiResult.text.trim().length > 0 ? aiResult.text : undefined;
       await FlowRouter.executeHandoff(account, session, cwConvId, handoffMsg);
       return;

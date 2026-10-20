@@ -7,8 +7,10 @@ export interface AiResponse {
   text: string;
   isHandoff: boolean;
   isResolved: boolean;
-  isOrderStarted: boolean;
+  isOrderCreated: boolean;
   orderData?: any;
+  isOrderCancelled: boolean;
+  cancelData?: any;
 }
 
 export class AiService {
@@ -58,13 +60,24 @@ export class AiService {
           description: 'Cierra la conversación. Úsala SOLO cuando el usuario se despida definitivamente o indique claramente que ya no necesita más ayuda.',
           parameters: z.object({}),
         },
-        iniciar_pedido: {
-          description: 'Crea un pedido. Úsala ÚNICAMENTE cuando el cliente ya te haya dicho la cantidad, el producto y su dirección de entrega.',
+        crear_pedido: {
+          description: 'Registra y confirma un pedido cuando el cliente ya indicó los productos, cantidades y la dirección de entrega.',
           parameters: z.object({
-            cantidad: z.number().int().positive().describe('Cantidad total de productos.'),
-            producto: z.enum(['Garrafón', 'Garrafón Ciel', 'Botella 355ml', 'Botella 500ml', 'Botella 1L', 'Botella 1.5L']).describe('Producto a pedir.'),
-            direccion: z.string().min(5).describe('Dirección de entrega.'),
-            referencias: z.string().optional().describe('Referencias de la casa.')
+            items: z.array(z.object({
+              producto: z.string().describe('Nombre del producto o servicio del catálogo'),
+              cantidad: z.number().int().positive().describe('Cantidad solicitada'),
+              notas: z.string().optional().describe('Detalles específicos de este ítem')
+            })).min(1).describe('Lista de productos o servicios solicitados'),
+            direccion: z.string().optional().describe('Dirección de entrega. Omitir si el cliente confirma usar su dirección registrada'),
+            referencias: z.string().optional().describe('Referencias de la ubicación o domicilio'),
+            notas_generales: z.string().optional().describe('Instrucciones adicionales para la entrega')
+          }),
+        },
+        cancelar_pedido: {
+          description: 'Cancela un pedido que se encuentra pendiente de entrega.',
+          parameters: z.object({
+            codigo_pedido: z.string().optional().describe('Código de rastreo o identificador del pedido a cancelar'),
+            motivo: z.string().optional().describe('Motivo de la cancelación proporcionado por el cliente')
           }),
         }
       };
@@ -115,28 +128,31 @@ export class AiService {
         system: systemPrompt,
         messages: history,
         tools,
-        maxSteps: 3 // Permite que la IA llame a la API y luego lea la respuesta para escribir el mensaje final
+        maxSteps: 3
       } as any);
 
       let isHandoff = false;
       let isResolved = false;
-      let isOrderStarted = false;
+      let isOrderCreated = false;
       let orderData = null;
+      let isOrderCancelled = false;
+      let cancelData = null;
 
-      // El Vercel AI SDK no expone los toolCalls internos del loop si usas maxSteps,
-      // pero si el último step fue una herramienta terminal (handoff/resolve), vendrá en toolCalls
       if (toolCalls && toolCalls.length > 0) {
         for (const tc of toolCalls) {
           if (tc.toolName === 'transferir_a_humano') isHandoff = true;
           if (tc.toolName === 'resolver_conversacion') isResolved = true;
-          if (tc.toolName === 'iniciar_pedido') {
-            isOrderStarted = true;
-            orderData = tc.args;
+          if (tc.toolName === 'crear_pedido') {
+            isOrderCreated = true;
+            orderData = (tc as any).args;
+          }
+          if (tc.toolName === 'cancelar_pedido') {
+            isOrderCancelled = true;
+            cancelData = (tc as any).args;
           }
         }
       }
 
-      // Hack de fallback por si la IA devuelve un texto vacío tras usar herramientas terminales
       let finalText = text || "";
       if (!finalText && isHandoff) finalText = "Transfiriendo a un humano...";
       if (!finalText && isResolved) finalText = "Conversación finalizada.";
@@ -145,12 +161,20 @@ export class AiService {
         text: finalText,
         isHandoff,
         isResolved,
-        isOrderStarted,
-        orderData
+        isOrderCreated,
+        orderData,
+        isOrderCancelled,
+        cancelData
       };
     } catch (error) {
       console.error('[AiService] Error generando texto:', error);
-      return { text: "[ERROR_IA]", isHandoff: false, isResolved: false, isOrderStarted: false };
+      return { 
+        text: "[ERROR_IA]", 
+        isHandoff: false, 
+        isResolved: false, 
+        isOrderCreated: false, 
+        isOrderCancelled: false 
+      };
     }
   }
 }
