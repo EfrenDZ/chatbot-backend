@@ -27,8 +27,18 @@ export class AiOrchestrator {
       promptParts.push(`REGLAS DE OBLIGATORIO CUMPLIMIENTO:\n${knowledge.rules.map((r: string) => `- ${r}`).join('\n')}`);
     }
 
-    if (knowledge.catalog && knowledge.catalog.length > 0) {
-      const catText = knowledge.catalog.map((c: any) => `- Producto/Servicio: ${c.name}\n  Precio: $${c.price}\n  Detalles: ${c.description || 'Sin descripción'}`).join('\n\n');
+    const dynamicCatalog = sessionMetadata?.catalogo;
+    const effectiveCatalog = (dynamicCatalog && Array.isArray(dynamicCatalog) && dynamicCatalog.length > 0)
+      ? dynamicCatalog.map((c: any) => ({
+          id: c.id,
+          name: c.nombre || c.name,
+          price: c.precio ?? c.price,
+          description: c.es_exclusivo ? 'Precio especial exclusivo para este cliente' : (c.description || '')
+        }))
+      : (knowledge.catalog || []);
+
+    if (effectiveCatalog.length > 0) {
+      const catText = effectiveCatalog.map((c: any) => `- Producto/Servicio: ${c.name}\n  Precio: $${c.price}\n  Detalles: ${c.description || 'Sin descripción adicional'}`).join('\n\n');
       promptParts.push(`CATÁLOGO DE PRODUCTOS / SERVICIOS:\n${catText}`);
     }
 
@@ -195,9 +205,11 @@ export class AiOrchestrator {
 
     // TOOL CALL: CREAR PEDIDO
     if (aiResult.isOrderCreated && config.apiBaseUrl) {
-      console.log(`[BotEngine] IA ejecutó crear_pedido en sesión ${session.id}`, aiResult.orderData);
-      
-      const catalog = (config.aiKnowledge as any)?.catalog || [];
+      const dynamicCat = metadata.catalogo;
+      const catalog = (dynamicCat && Array.isArray(dynamicCat) && dynamicCat.length > 0)
+        ? dynamicCat.map((c: any) => ({ id: c.id, name: c.nombre || c.name, price: c.precio ?? c.price }))
+        : ((config.aiKnowledge as any)?.catalog || []);
+
       const items = aiResult.orderData?.items || [];
       const detalle = items.map((it: any) => {
         const itemProd = (it.producto || '').toLowerCase().trim();
