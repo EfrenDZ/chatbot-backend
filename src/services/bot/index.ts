@@ -27,9 +27,14 @@ export class BotEngine {
     if (minutesInactive > timeoutMins) {
       console.log(`[BotEngine] Sesión ${session.id} expirada (>${timeoutMins}m). Reiniciando.`);
       await SessionManager.resetSession(session.id, account.botConfig);
-      session.currentNodeId = (account.botConfig.flowGraph as any).rootNodeId;
+      session.currentNodeId = (account.botConfig.flowGraph as any)?.rootNodeId || null;
       session.status = 'BOT_HANDLING';
       
+      if (account.botConfig.botMode === 'AI') {
+        await AiOrchestrator.processAiMessage(account, session, cwConversation.id, content);
+        return;
+      }
+
       if (account.botConfig.welcomeMessage && account.chatwootAccessToken) {
         await ChatwootService.sendMessage(account.chatwootApiUrl, account.chatwootAccessToken, account.chatwootAccountId, cwConversation.id, account.botConfig.welcomeMessage);
         await delay(500);
@@ -43,6 +48,11 @@ export class BotEngine {
       await SessionManager.resetSession(session.id, account.botConfig);
       await prisma.conversationSession.update({ where: { id: session.id }, data: { status: 'BOT_HANDLING' } });
       
+      if (account.botConfig.botMode === 'AI') {
+        await AiOrchestrator.processAiMessage(account, session, cwConversation.id, content);
+        return;
+      }
+
       if (account.botConfig.welcomeMessage && account.chatwootAccessToken) {
         await ChatwootService.sendMessage(account.chatwootApiUrl, account.chatwootAccessToken, account.chatwootAccountId, cwConversation.id, account.botConfig.welcomeMessage);
         await delay(500);
@@ -61,6 +71,10 @@ export class BotEngine {
     }
 
     if (isNew) {
+      if (account.botConfig.botMode === 'AI') {
+        await AiOrchestrator.processAiMessage(account, session, cwConversation.id, content);
+        return;
+      }
       if (account.botConfig.welcomeMessage && account.chatwootAccessToken) {
         await ChatwootService.sendMessage(account.chatwootApiUrl, account.chatwootAccessToken, account.chatwootAccountId, cwConversation.id, account.botConfig.welcomeMessage);
         await delay(500);
