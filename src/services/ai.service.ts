@@ -144,11 +144,11 @@ export class AiService {
           if (tc.toolName === 'resolver_conversacion') isResolved = true;
           if (tc.toolName === 'crear_pedido') {
             isOrderCreated = true;
-            orderData = (tc as any).args;
+            orderData = (tc as any).input || (tc as any).args;
           }
           if (tc.toolName === 'cancelar_pedido') {
             isOrderCancelled = true;
-            cancelData = (tc as any).args;
+            cancelData = (tc as any).input || (tc as any).args;
           }
         }
       }

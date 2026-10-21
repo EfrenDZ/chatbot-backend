@@ -124,8 +124,8 @@ export class AiOrchestrator {
      2. Dirección completa de entrega (calle, número) y referencias (fachada, calles aledañas).
      3. Nombre del cliente (si no está registrado en su contexto).
    - Si el cliente ya tiene dirección y nombre registrados en su contexto, NO se los vuelvas a pedir, solo confírmaselos brevemente.
-   - Si el cliente dio solo los productos pero olvidó su dirección o referencias, pídelas de inmediato en una sola pregunta directa.
    - En cuanto tengas completos los productos, cantidades, dirección y referencias, ejecuta INMEDIATAMENTE la herramienta 'crear_pedido'.
+     REGLA CRUCIAL PARA 'crear_pedido': SIEMPRE debes extraer de la conversación los productos y cantidades acordadas y pasarlos en el parámetro 'items' (ej. items: [{ producto: "Garrafon normal", cantidad: 5 }]). NUNCA envíes 'items' vacío ni transfieras a un humano si ya tienes los datos para crear el pedido.
 
 4. CANCELACIÓN DE PEDIDOS:
    - Si el cliente solicita cancelar un pedido, utiliza la herramienta 'cancelar_pedido'.
@@ -222,8 +222,10 @@ export class AiOrchestrator {
       return;
     }
 
-    // Si la IA responde texto, lo guardamos y enviamos
-    if (aiResult.text.trim().length > 0) {
+    const hasTerminalAction = aiResult.isOrderCreated || aiResult.isOrderCancelled || aiResult.isHandoff || aiResult.isResolved;
+
+    // Si la IA responde texto ordinario sin acciones terminales, lo guardamos y enviamos
+    if (!hasTerminalAction && aiResult.text.trim().length > 0) {
       await prisma.messageLog.create({
         data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: aiResult.text }
       });
@@ -247,6 +249,20 @@ export class AiOrchestrator {
         : ((config.aiKnowledge as any)?.catalog || []);
 
       let items = aiResult.orderData?.items || [];
+      
+      // Fallback 1: Buscar productos y cantidades en el historial de mensajes recientes
+      if (!items || items.length === 0) {
+        for (let i = history.length - 1; i >= 0; i--) {
+          const hMsg = history[i];
+          const match = (hMsg.content || '').match(/(\d+)\s*(garraf[oó]n\w*|botella\w*|ciel|agua\s*cero|normal\w*)/i);
+          if (match) {
+            items = [{ producto: match[2], cantidad: parseInt(match[1]) }];
+            break;
+          }
+        }
+      }
+
+      // Fallback 2: Usar detalles del último pedido si el cliente dijo "lo de siempre"
       if ((!items || items.length === 0) && metadata.ultimo_pedido?.detalles) {
         items = metadata.ultimo_pedido.detalles.map((d: any) => ({
           producto: d.nombre_producto || d.producto_nombre,
@@ -255,12 +271,46 @@ export class AiOrchestrator {
         }));
       }
 
-      const detalle = items.map((it: any) => {
-        const itemProd = (it.producto || '').toLowerCase().trim();
-        const matched = catalog.find((c: any) => {
-          const catName = (c.name || '').toLowerCase().trim();
-          return catName === itemProd || itemProd.includes(catName) || catName.includes(itemProd);
+      const normalizeStr = (str: string) => (str || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
+      const findCatalogMatch = (itemProdName: string, catList: any[]) => {
+        if (!catList || catList.length === 0) return null;
+        const normItem = normalizeStr(itemProdName);
+        const exact = catList.find(c => normalizeStr(c.name) === normItem);
+        if (exact) return exact;
+
+        const sub = catList.find(c => {
+          const normCat = normalizeStr(c.name);
+          return normItem.includes(normCat) || normCat.includes(normItem);
         });
+        if (sub) return sub;
+
+        const itemWords = normItem.split(/\s+/).map(w => w.replace(/(es|s)$/, '')).filter(w => w.length > 2);
+        let bestScore = 0;
+        let bestMatch = null;
+        for (const c of catList) {
+          const normCat = normalizeStr(c.name);
+          const catWords = normCat.split(/\s+/).map(w => w.replace(/(es|s)$/, '')).filter(w => w.length > 2);
+          let score = 0;
+          for (const iw of itemWords) {
+            if (catWords.some(cw => cw === iw || cw.includes(iw) || iw.includes(cw))) {
+              score++;
+            }
+          }
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = c;
+          }
+        }
+        return bestScore > 0 ? bestMatch : null;
+      };
+
+      const detalle = items.map((it: any) => {
+        const matched = findCatalogMatch(it.producto, catalog);
         return {
           producto_id: matched?.id || null,
           nombre_producto: matched?.name || it.producto,
@@ -297,6 +347,9 @@ export class AiOrchestrator {
         const orderData = await orderRes.json();
         if (orderRes.ok && orderData.status === 'success') {
           const confirmation = orderData.mensaje || `¡Listo! Tu pedido ha sido confirmado. Código de seguimiento: ${orderData.codigo_rastreo || ''}`;
+          await prisma.messageLog.create({
+            data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: confirmation }
+          });
           if (account.chatwootAccessToken) {
             await ChatwootService.sendMessage(
               account.chatwootApiUrl,
