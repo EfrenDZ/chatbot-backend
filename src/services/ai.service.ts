@@ -53,7 +53,7 @@ export class AiService {
     try {
       const tools: Record<string, any> = {
         transferir_a_humano: {
-          description: 'Transfiere inmediatamente la conversación a un agente humano en vivo. Úsala cuando el usuario lo solicite explícitamente o si no puedes resolver su problema.',
+          description: 'Transfiere la conversación a un asesor humano en vivo. Úsala ÚNICAMENTE cuando el usuario lo solicite de manera explícita (ej. "quiero hablar con una persona", "pásame a un asesor"). ESTÁ ESTRICTAMENTE PROHIBIDO usarla ante cambios de dirección, dudas de productos, preguntas o durante la toma de pedidos.',
           parameters: z.object({}),
         },
         resolver_conversacion: {
