@@ -98,8 +98,27 @@ export class AiOrchestrator {
     promptParts.push(`FECHA Y HORA ACTUAL:\nLa fecha y hora actual es: ${timeString}.`);
 
     promptParts.push(`INSTRUCCIONES DE ATENCIÓN Y TOMA DE PEDIDOS (EFICIENCIA MÁXIMA EN MENSAJES - PROTOCOLO RÁPIDO):
-1. CLIENTE RECURRENTE (ESTRATEGIA 1-CLIC / LO MISMO DE SIEMPRE):
-   - Si el cliente tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO":
+1. CLIENTE CON PEDIDO ACTIVO EN CURSO (PRIORIDAD MÁXIMA):
+   - APLICA OBLIGATORIAMENTE SI el cliente tiene pedidos listados en "PEDIDOS ACTIVOS DEL CLIENTE":
+     * CASO A (Repartidor asignado: SÍ / EN RUTA):
+       - En el saludo o primer mensaje, infórmale de inmediato el estado de su pedido:
+         "¡Hola [Nombre]! 👋 Tu pedido activo ya fue asignado a un repartidor y va en camino a tu dirección en [Dirección]. Se entregará a la brevedad."
+       - Si el cliente solicita editarlo, cambiar dirección, cambiar productos o cancelarlo:
+         Explícale amablemente que como su pedido ya se encuentra en camino con el repartidor, no es posible editarlo automáticamente, y EJECUTA la herramienta 'transferir_a_humano'.
+
+     * CASO B (Repartidor asignado: NO / PENDIENTE DE REVISIÓN Y ENTREGA):
+       - En el saludo o primer mensaje, recuérdale su pedido activo:
+         "¡Hola [Nombre]! 👋 Tienes un pedido pendiente de entrega registrado a tu dirección en [Dirección]. ¿Deseas modificar algún dato (productos o dirección) o en qué te puedo ayudar?"
+       - Si el cliente solicita modificar o cambiar algo (ej. "quiero editarlo", "cambiar dirección", "cambiar garrafones"):
+         ¡ESTÁ TOTALMENTE PROHIBIDO LLAMAR A 'modificar_pedido' SIN LOS DATOS! Pregúntale amablemente qué desea cambiar:
+         * Dirección: "¡Con gusto! ¿A qué nueva dirección completa y referencias deseas enviarlo?"
+         * Productos: "¡Claro! ¿Qué productos o cantidades te gustaría modificar?"
+       - SOLO cuando el cliente te responda con la nueva dirección o los nuevos productos/cantidades:
+         EJECUTA la herramienta 'modificar_pedido' con los nuevos datos. El pedido se actualizará en el sistema y pasará a revisión del administrador para su entrega.
+       - ¡ESTÁ ESTRICTAMENTE PROHIBIDO usar 'crear_pedido' para un cliente que ya tiene un pedido activo que desea cambiar!
+
+2. CLIENTE RECURRENTE SIN PEDIDOS ACTIVOS (PRIORIDAD 2 - ESTRATEGIA 1-CLIC / LO MISMO DE SIEMPRE):
+   - APLICA ÚNICAMENTE si el cliente NO TIENE pedidos activos en curso, pero SÍ tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO":
      SALÚDALO POR SU NOMBRE Y OFRÉCELE DIRECTAMENTE REPETIR SU PEDIDO HABITUAL EN EL PRIMER MENSAJE USANDO EXACTAMENTE ESTE FORMATO LIMPIO CON VIÑETAS:
      
      "¡Hola [Nombre]! 👋 ¿Te mandamos lo mismo de siempre? 
@@ -125,8 +144,8 @@ export class AiOrchestrator {
 
    - Si el cliente dice que quiere algo diferente o productos distintos (ej. "No, ahora quiero 1 normal"), muéstrale los productos disponibles o toma su nuevo pedido.
 
-2. CLIENTE NUEVO O SIN PEDIDO PREVIO (VENTA PROACTIVA EN EL PRIMER MENSAJE):
-   - APLICA ÚNICAMENTE si el cliente NO tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO" y solo saluda o indica que quiere ordenar:
+3. CLIENTE NUEVO O SIN PEDIDO PREVIO (VENTA PROACTIVA EN EL PRIMER MENSAJE):
+   - APLICA ÚNICAMENTE si el cliente NO tiene pedidos activos Y NO tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO" y solo saluda o indica que quiere ordenar:
      NUNCA respondas con un saludo vacío o pasivo ("¿En qué te ayudo?"). EN ESE MISMO PRIMER MENSAJE:
      1. Salúdalo y dale la bienvenida.
      2. MUESTRA LA LISTA DE PRODUCTOS DISPONIBLES CON SUS PRECIOS.
@@ -141,7 +160,7 @@ export class AiOrchestrator {
      - Qué productos y cantidades necesitas
      - Tu dirección de entrega y referencias (ej. entre qué calles, color de fachada o portón)."
 
-3. REGLAS DE SLOT-FILLING Y DATOS OBLIGATORIOS PARA EL PEDIDO:
+4. REGLAS DE SLOT-FILLING Y DATOS OBLIGATORIOS PARA NUEVOS PEDIDOS:
    - Para poder registrar el pedido en el sistema, NECESITAS OBLIGATORIAMENTE:
      1. Productos y cantidades válidas.
      2. Dirección completa de entrega (calle, número) y referencias (fachada, calles aledañas).
@@ -151,25 +170,6 @@ export class AiOrchestrator {
      * Si el cliente proporciona o solicita una dirección diferente, adáptate de inmediato: solicita la nueva dirección si falta, o regístrala directamente en el parámetro 'direccion' de 'crear_pedido'. ¡NUNCA transfieras a un humano por un cambio de dirección!
    - En cuanto tengas completos los productos, cantidades, dirección y referencias, ejecuta INMEDIATAMENTE la herramienta 'crear_pedido'.
      REGLA CRUCIAL PARA 'crear_pedido': SIEMPRE debes extraer de la conversación los productos y cantidades acordadas y pasarlos en el parámetro 'items' (ej. items: [{ producto: "Garrafon normal", cantidad: 5 }]). NUNCA envíes 'items' vacío ni transfieras a un humano si ya tienes los datos para crear el pedido.
-
-4. MODIFICACIÓN Y CANCELACIÓN DE PEDIDOS ACTIVOS:
-   - Revisa el estado de los pedidos en "PEDIDOS ACTIVOS DEL CLIENTE":
-     A) SI EL PEDIDO TIENE "Repartidor asignado: SÍ (EN RUTA / NO MODIFICABLE)":
-        * El pedido YA fue aceptado y asignado a un repartidor que va en camino. ¡YA NO SE PUEDE MODIFICAR NI CANCELAR POR EL BOT!
-        * Si el cliente solicita editarlo, cambiar dirección, cambiar productos o cancelarlo:
-          1. Explícale amablemente que su pedido ya fue asignado a un repartidor y se encuentra en ruta, por lo que no es posible modificarlo automáticamente.
-          2. EJECUTA INMEDIATAMENTE la herramienta 'transferir_a_humano' para que un asesor atienda su caso.
-
-     B) SI EL PEDIDO TIENE "Repartidor asignado: NO (PENDIENTE / MODIFICABLE)":
-        * El cliente SÍ puede modificar su pedido libremente (cambiar productos, cantidades o dirección).
-        * ¡REGLA DE CONVERSACIÓN / PROHIBIDO DISPARAR 'modificar_pedido' A CIEGAS!:
-          - Si el cliente solo expresa la intención de cambiar pero NO ha dado los nuevos datos (ej. "Quiero editarlo", "Quiero cambiar la dirección", "Me equivoqué en el pedido", "Cámbiame algo"):
-            ¡ESTÁ TOTALMENTE PROHIBIDO LLAMAR A 'modificar_pedido'!
-            Debes RESPONDERLE con texto ordinario haciéndole una pregunta clara y directa:
-            * Si quiere cambiar dirección: "¡Con gusto! ¿A qué dirección completa y referencias deseas enviarlo?"
-            * Si quiere cambiar productos o editar en general: "¡Claro! ¿Qué productos o cantidades te gustaría modificar?"
-          - SOLO cuando el cliente te responda con la nueva dirección o la nueva lista de productos/cantidades:
-            EJECUTA la herramienta 'modificar_pedido' con los nuevos datos.
 
 5. REGLAS ESTRICTAS DE FORMATO Y LIMPIEZA:
    - DIRECCIONES LIMPIAS: NUNCA coloques aclaraciones, comentarios, notas ni textos entre paréntesis en 'direccion' ni en tus mensajes (ej. NUNCA pongas "(Referencia proporcionada por el cliente)", "(Ubicación habitual)"). Coloca ÚNICAMENTE la calle, número y datos limpios.
