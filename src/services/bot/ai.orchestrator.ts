@@ -68,6 +68,11 @@ export class AiOrchestrator {
           metaParts.push(`- Referencias registradas: ${cl.referencias_predeterminadas || cl.referencias}`);
         }
       }
+      if (sessionMetadata.ultimo_pedido) {
+        const up = sessionMetadata.ultimo_pedido;
+        const resumen = up.resumen_texto || (up.detalles ? up.detalles.map((d: any) => `${d.cantidad}x ${d.nombre_producto || d.producto_nombre}`).join(', ') : '');
+        metaParts.push(`- ÚLTIMO PEDIDO HABITUAL REGISTRADO:\n  ${resumen}\n  Total: $${up.total || ''}`);
+      }
       if (sessionMetadata.pedidos_activos && Array.isArray(sessionMetadata.pedidos_activos) && sessionMetadata.pedidos_activos.length > 0) {
         const pText = sessionMetadata.pedidos_activos.map((p: any) => `* Pedido #${p.id || ''} (Código: ${p.codigo_rastreo || p.codigo}) - Estado: ${p.estado_texto || p.estado} - Total: $${p.total}`).join('\n');
         metaParts.push(`- Pedidos activos del cliente:\n${pText}`);
@@ -88,16 +93,27 @@ export class AiOrchestrator {
     });
     promptParts.push(`FECHA Y HORA ACTUAL:\nLa fecha y hora actual es: ${timeString}.`);
 
-    promptParts.push(`INSTRUCCIONES DE ATENCIÓN Y TOMA DE PEDIDOS (EFICIENCIA MÁXIMA EN MENSAJES):
-1. TOMA DE PEDIDOS (SLOT-FILLING):
+    promptParts.push(`INSTRUCCIONES DE ATENCIÓN Y TOMA DE PEDIDOS (EFICIENCIA MÁXIMA EN MENSAJES - PROTOCOLO RÁPIDO):
+1. CLIENTE RECURRENTE (ESTRATEGIA 1-CLIC / LO MISMO DE SIEMPRE):
+   - Si el cliente tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO" y solo saluda (ej. "Hola", "Buenas tardes", "Quiero pedir"):
+     SALÚDALO POR SU NOMBRE Y PREGÚNTALE DIRECTAMENTE SI QUIERE REPETIR SU PEDIDO DE SIEMPRE:
+     Ejemplo: "¡Hola [Nombre]! 👋 ¿Te mandamos lo mismo de siempre? ([Productos del pedido habitual] por $[Total]) a tu dirección habitual en [Dirección]?"
+   - Si el cliente responde afirmativamente ("Sí", "Por favor", "Simón", "Mándalo", "Lo de siempre", "Ok"):
+     EJECUTA INMEDIATAMENTE la herramienta 'crear_pedido' con esos productos y dirección. ¡El pedido debe quedar creado en esa única respuesta del cliente!
+   - Si el cliente pide algo distinto (ej. "No, ahora quiero 1 normal"), atiéndelo de inmediato con lo que pida.
+
+2. TOMA DE PEDIDOS NUEVOS O MODIFICADOS (SLOT-FILLING ÁGIL):
    - Si el cliente menciona productos pero no cantidades, pregunta las cantidades de forma concisa.
-   - DIRECCIÓN: Si el cliente ya tiene una dirección registrada en su contexto, CONFÍRMALA brevemente ("¿Te lo mandamos a tu dirección habitual en [Dirección]?"). NUNCA le pidas volver a escribir toda su dirección si ya la tiene guardada, a menos que el cliente indique que quiere enviarlo a otro lugar o sea un cliente nuevo sin dirección.
+   - DIRECCIÓN: Si el cliente ya tiene una dirección registrada en su contexto, CONFÍRMALA brevemente ("¿A tu dirección de siempre?"). NUNCA le pidas volver a escribir toda su dirección si ya la tiene guardada, a menos que el cliente indique que quiere enviarlo a otro lugar o sea un cliente nuevo sin dirección.
    - En cuanto tengas claros los productos, cantidades y confirmada la dirección, llama INMEDIATAMENTE a la herramienta 'crear_pedido'.
-2. CANCELACIÓN DE PEDIDOS:
-   - Si el cliente solicita cancelar un pedido, utiliza la herramienta 'cancelar_pedido' indicando el código o ID correspondiente si lo tiene.
-3. PREGUNTAS NO RELACIONADAS O ASESOR:
+
+3. CANCELACIÓN DE PEDIDOS:
+   - Si el cliente solicita cancelar un pedido, utiliza la herramienta 'cancelar_pedido'.
+
+4. PREGUNTAS NO RELACIONADAS O ASESOR:
    - Si el usuario pregunta algo fuera de tu alcance o pide hablar con un humano, utiliza 'transferir_a_humano'.
-4. AUTO-CIERRE:
+
+5. AUTO-CIERRE:
    - Si el cliente se despide ("gracias adios", "todo bien gracias"), despídete cordialmente y utiliza 'resolver_conversacion'.`);
 
     return promptParts.join('\n\n------------------------\n\n');
@@ -210,7 +226,15 @@ export class AiOrchestrator {
         ? dynamicCat.map((c: any) => ({ id: c.id, name: c.nombre || c.name, price: c.precio ?? c.price }))
         : ((config.aiKnowledge as any)?.catalog || []);
 
-      const items = aiResult.orderData?.items || [];
+      let items = aiResult.orderData?.items || [];
+      if ((!items || items.length === 0) && metadata.ultimo_pedido?.detalles) {
+        items = metadata.ultimo_pedido.detalles.map((d: any) => ({
+          producto: d.nombre_producto || d.producto_nombre,
+          cantidad: d.cantidad,
+          notas: d.notas
+        }));
+      }
+
       const detalle = items.map((it: any) => {
         const itemProd = (it.producto || '').toLowerCase().trim();
         const matched = catalog.find((c: any) => {
