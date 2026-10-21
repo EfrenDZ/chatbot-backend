@@ -75,14 +75,14 @@ export class AiService {
           }),
         },
         modificar_pedido: {
-          description: 'Modifica un pedido activo existente que aún no ha sido asignado a un repartidor (ej. cambiar productos, cantidades o dirección). Úsala cuando el cliente solicite cambiar o corregir un pedido ya registrado en lugar de crear uno nuevo.',
+          description: 'Modifica un pedido activo existente. REGLA OBLIGATORIA: NUNCA llames a esta herramienta si el cliente solo dice "quiero editarlo", "quiero cambiar la dirección" o similar sin dar los nuevos datos. Primero pregúntale qué desea cambiar o cuál es la nueva dirección. Úsala ÚNICAMENTE cuando el cliente ya te haya proporcionado la nueva dirección o la nueva lista de productos y cantidades.',
           parameters: z.object({
             codigo_pedido: z.string().optional().describe('Código del pedido si se conoce'),
             items: z.array(z.object({
               producto: z.string().describe('Nombre del producto o servicio del catálogo'),
               cantidad: z.number().int().positive().describe('Cantidad solicitada'),
               notas: z.string().optional().describe('Detalles específicos de este ítem')
-            })).optional().describe('Nuevos productos o cantidades del pedido'),
+            })).optional().describe('Nuevos productos o cantidades del pedido si cambiaron'),
             direccion: z.string().optional().describe('Nueva dirección de entrega limpia si cambió. NUNCA agregues textos entre paréntesis'),
             referencias: z.string().optional().describe('Nuevas referencias de ubicación')
           }),

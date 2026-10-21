@@ -76,8 +76,10 @@ export class AiOrchestrator {
         }
       }
       if (sessionMetadata.pedidos_activos && Array.isArray(sessionMetadata.pedidos_activos) && sessionMetadata.pedidos_activos.length > 0) {
-        const pText = sessionMetadata.pedidos_activos.map((p: any) => `* Pedido #${p.id || ''} (Código: ${p.codigo_rastreo || p.codigo}) - Estado: ${p.estado_texto || p.estado} - Total: $${p.total}`).join('\n');
-        metaParts.push(`- Pedidos activos del cliente:\n${pText}`);
+        const pText = sessionMetadata.pedidos_activos.map((p: any) => 
+          `* Pedido #${p.id || ''} (Código: ${p.codigo_rastreo || p.codigo}) - Estado: ${p.estado_texto || p.estado} | Repartidor asignado: ${p.repartidor_asignado ? 'SÍ (EN RUTA / NO MODIFICABLE)' : 'NO (PENDIENTE / MODIFICABLE)'} | Total: $${p.total}`
+        ).join('\n');
+        metaParts.push(`- PEDIDOS ACTIVOS DEL CLIENTE:\n${pText}`);
       }
       if (sessionMetadata.fuera_de_horario) {
         metaParts.push(`- AVISO DE HORARIO: Actualmente estamos cerrados. Próximo día hábil: ${sessionMetadata.mensaje_horario || 'el siguiente día laboral'}. Si el cliente pide productos, aclárale que su entrega se agendará para ese horario.`);
@@ -150,27 +152,42 @@ export class AiOrchestrator {
    - En cuanto tengas completos los productos, cantidades, dirección y referencias, ejecuta INMEDIATAMENTE la herramienta 'crear_pedido'.
      REGLA CRUCIAL PARA 'crear_pedido': SIEMPRE debes extraer de la conversación los productos y cantidades acordadas y pasarlos en el parámetro 'items' (ej. items: [{ producto: "Garrafon normal", cantidad: 5 }]). NUNCA envíes 'items' vacío ni transfieras a un humano si ya tienes los datos para crear el pedido.
 
-4. MODIFICACIÓN DE PEDIDOS ACTIVOS:
-   - Si el cliente cuenta con pedidos activos (listados en "Pedidos activos del cliente") y solicita cambiar productos, corregir cantidades o cambiar la dirección de entrega de su pedido (ej. "Cámbiame la dirección", "Es otra dirección", "Mejor que sean 2", "Agrega 1 ciel"):
-     * DEBES USAR OBLIGATORIAMENTE la herramienta 'modificar_pedido'.
-     * ESTÁ ESTRICTAMENTE PROHIBIDO usar 'crear_pedido' cuando el cliente está editando, corrigiendo o cambiando un pedido activo existente. Usar 'crear_pedido' crearía un pedido duplicado en el sistema.
-     * Pasa los datos modificados: la nueva dirección limpia en 'direccion' y/o los productos actualizados en 'items'.
+4. MODIFICACIÓN Y CANCELACIÓN DE PEDIDOS ACTIVOS:
+   - Revisa el estado de los pedidos en "PEDIDOS ACTIVOS DEL CLIENTE":
+     A) SI EL PEDIDO TIENE "Repartidor asignado: SÍ (EN RUTA / NO MODIFICABLE)":
+        * El pedido YA fue aceptado y asignado a un repartidor que va en camino. ¡YA NO SE PUEDE MODIFICAR NI CANCELAR POR EL BOT!
+        * Si el cliente solicita editarlo, cambiar dirección, cambiar productos o cancelarlo:
+          1. Explícale amablemente que su pedido ya fue asignado a un repartidor y se encuentra en ruta, por lo que no es posible modificarlo automáticamente.
+          2. EJECUTA INMEDIATAMENTE la herramienta 'transferir_a_humano' para que un asesor atienda su caso.
+
+     B) SI EL PEDIDO TIENE "Repartidor asignado: NO (PENDIENTE / MODIFICABLE)":
+        * El cliente SÍ puede modificar su pedido libremente (cambiar productos, cantidades o dirección).
+        * ¡REGLA DE CONVERSACIÓN / PROHIBIDO DISPARAR 'modificar_pedido' A CIEGAS!:
+          - Si el cliente solo expresa la intención de cambiar pero NO ha dado los nuevos datos (ej. "Quiero editarlo", "Quiero cambiar la dirección", "Me equivoqué en el pedido", "Cámbiame algo"):
+            ¡ESTÁ TOTALMENTE PROHIBIDO LLAMAR A 'modificar_pedido'!
+            Debes RESPONDERLE con texto ordinario haciéndole una pregunta clara y directa:
+            * Si quiere cambiar dirección: "¡Con gusto! ¿A qué dirección completa y referencias deseas enviarlo?"
+            * Si quiere cambiar productos o editar en general: "¡Claro! ¿Qué productos o cantidades te gustaría modificar?"
+          - SOLO cuando el cliente te responda con la nueva dirección o la nueva lista de productos/cantidades:
+            EJECUTA la herramienta 'modificar_pedido' con los nuevos datos.
 
 5. REGLAS ESTRICTAS DE FORMATO Y LIMPIEZA:
    - DIRECCIONES LIMPIAS: NUNCA coloques aclaraciones, comentarios, notas ni textos entre paréntesis en 'direccion' ni en tus mensajes (ej. NUNCA pongas "(Referencia proporcionada por el cliente)", "(Ubicación habitual)"). Coloca ÚNICAMENTE la calle, número y datos limpios.
    - CÓDIGOS DE RASTREO: NUNCA menciones códigos de rastreo (como AC...) en los mensajes al cliente. La confirmación debe ser directa, breve y limpia.
 
 6. CANCELACIÓN DE PEDIDOS:
-   - Si el cliente solicita cancelar un pedido, utiliza la herramienta 'cancelar_pedido'.
+   - Si el cliente solicita cancelar un pedido pendiente (sin repartidor asignado), utiliza la herramienta 'cancelar_pedido'. Si ya tiene repartidor asignado, explícaselo y transfiere a un humano.
 
 7. PREGUNTAS NO RELACIONADAS O ASESOR:
    - Utiliza 'transferir_a_humano' ÚNICAMENTE si:
      a) El cliente solicita explícitamente hablar con una persona ("quiero hablar con un humano", "pásame a un asesor", "comunícame con alguien").
-     b) Hay una queja o reclamo grave fuera de la venta o cancelación de pedidos.
-   - NUNCA transfieras a humano durante la toma de pedidos, cotizaciones, cambios de productos, cambios de dirección o selección de cantidades. Tú eres un asistente autónomo con capacidad completa para gestionar pedidos y direcciones.
+     b) El cliente desea modificar o cancelar un pedido que YA tiene repartidor asignado.
+     c) Hay una queja o reclamo grave fuera de la venta normal.
+   - NUNCA transfieras a humano durante la toma de pedidos, cotizaciones, o cuando un pedido sin repartidor pueda ser modificado normalmente por ti.
 
 8. AUTO-CIERRE:
-   - Si el cliente se despide ("gracias adios", "todo bien gracias"), despídete cordialmente y utiliza 'resolver_conversacion'.`);
+   - ¡PROHIBIDO AUTO-CERRAR TRAS CREAR O MODIFICAR UN PEDIDO!: NUNCA uses 'resolver_conversacion' inmediatamente después de registrar o modificar un pedido. Espera a que el cliente confirme que no necesita nada más.
+   - ÚNICAMENTE debes usar 'resolver_conversacion' si el cliente se despide expresamente ("gracias adios", "todo bien gracias", "sería todo, bye").`);
 
     return promptParts.join('\n\n------------------------\n\n');
   }
@@ -422,6 +439,41 @@ export class AiOrchestrator {
     if (aiResult.isOrderModified && config.apiBaseUrl) {
       console.log(`[BotEngine] IA ejecutó modificar_pedido en sesión ${session.id}`, aiResult.modifyData);
 
+      const hasNewAddress = Boolean(aiResult.modifyData?.direccion && aiResult.modifyData.direccion.trim().length > 0);
+      const hasNewItems = Boolean(aiResult.modifyData?.items && Array.isArray(aiResult.modifyData.items) && aiResult.modifyData.items.length > 0);
+
+      // GUARDRAIL 1: Si no vienen nuevos productos ni nueva dirección, no ejecutamos a ciegas
+      if (!hasNewAddress && !hasNewItems) {
+        console.warn(`[BotEngine] modificar_pedido invocado sin datos en sesión ${session.id}. Solicitando datos al cliente.`);
+        const askMsg = aiResult.text.trim().length > 0
+          ? aiResult.text
+          : "Con gusto te ayudo a modificar tu pedido. ¿Qué cambios deseas realizar en los productos o en la dirección de entrega?";
+
+        await prisma.messageLog.create({
+          data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: askMsg }
+        });
+
+        if (account.chatwootAccessToken) {
+          await ChatwootService.sendMessage(
+            account.chatwootApiUrl,
+            account.chatwootAccessToken,
+            account.chatwootAccountId,
+            cwConvId,
+            askMsg
+          );
+        }
+        return;
+      }
+
+      // GUARDRAIL 2: Si el pedido activo que se intenta modificar ya tiene repartidor asignado, transferir a humano
+      const targetOrder = metadata.pedidos_activos?.find((p: any) => !p.repartidor_asignado) || metadata.pedidos_activos?.[0];
+      if (targetOrder?.repartidor_asignado) {
+        console.log(`[BotEngine] Pedido ${targetOrder.id} ya tiene repartidor asignado. Transfiriendo a humano.`);
+        const assignedMsg = "Tu pedido ya fue asignado a un repartidor y se encuentra en ruta, por lo que no es posible modificarlo automáticamente. Te comunico con un asesor para que te ayude.";
+        await FlowRouter.executeHandoff(account, session, cwConvId, assignedMsg);
+        return;
+      }
+
       const dynamicCat = metadata.catalogo;
       const catalog = (dynamicCat && Array.isArray(dynamicCat) && dynamicCat.length > 0)
         ? dynamicCat.map((c: any) => ({ id: c.id, name: c.nombre || c.name, price: c.precio ?? c.price }))
@@ -453,7 +505,7 @@ export class AiOrchestrator {
 
       const modifyPayload = {
         telefono: session.contactIdentifier,
-        codigo: aiResult.modifyData?.codigo_pedido,
+        codigo: aiResult.modifyData?.codigo_pedido || targetOrder?.codigo_rastreo,
         direccion: AiOrchestrator.sanitizeAddress(aiResult.modifyData?.direccion),
         referencias: AiOrchestrator.sanitizeAddress(aiResult.modifyData?.referencias),
         detalle
