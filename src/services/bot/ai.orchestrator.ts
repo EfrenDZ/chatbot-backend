@@ -71,7 +71,9 @@ export class AiOrchestrator {
       if (sessionMetadata.ultimo_pedido) {
         const up = sessionMetadata.ultimo_pedido;
         const resumen = up.resumen_texto || (up.detalles ? up.detalles.map((d: any) => `${d.cantidad}x ${d.nombre_producto || d.producto_nombre}`).join(', ') : '');
-        metaParts.push(`- ÚLTIMO PEDIDO HABITUAL REGISTRADO:\n  ${resumen}\n  Total: $${up.total || ''}`);
+        if (resumen && resumen.trim().length > 0 && Number(up.total) > 0) {
+          metaParts.push(`- ÚLTIMO PEDIDO HABITUAL REGISTRADO:\n  ${resumen}\n  Total: $${up.total}`);
+        }
       }
       if (sessionMetadata.pedidos_activos && Array.isArray(sessionMetadata.pedidos_activos) && sessionMetadata.pedidos_activos.length > 0) {
         const pText = sessionMetadata.pedidos_activos.map((p: any) => `* Pedido #${p.id || ''} (Código: ${p.codigo_rastreo || p.codigo}) - Estado: ${p.estado_texto || p.estado} - Total: $${p.total}`).join('\n');
@@ -95,15 +97,16 @@ export class AiOrchestrator {
 
     promptParts.push(`INSTRUCCIONES DE ATENCIÓN Y TOMA DE PEDIDOS (EFICIENCIA MÁXIMA EN MENSAJES - PROTOCOLO RÁPIDO):
 1. CLIENTE RECURRENTE (ESTRATEGIA 1-CLIC / LO MISMO DE SIEMPRE):
-   - Si el cliente tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO" y solo saluda (ej. "Hola", "Buenas tardes", "Quiero pedir"):
-     SALÚDALO POR SU NOMBRE Y PREGÚNTALE DIRECTAMENTE SI QUIERE REPETIR SU PEDIDO DE SIEMPRE:
-     Ejemplo: "¡Hola [Nombre]! 👋 ¿Te mandamos lo mismo de siempre? ([Productos del pedido habitual] por $[Total]) a tu dirección habitual en [Dirección]?"
+   - Si el cliente tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO":
+     SALÚDALO POR SU NOMBRE Y OFRÉCELE DIRECTAMENTE REPETIR SU PEDIDO HABITUAL EN EL PRIMER MENSAJE:
+     Ejemplo: "¡Hola [Nombre]! 👋 ¿Te mandamos lo mismo de siempre? ([Productos del pedido habitual] por $[Total]) a tu dirección en [Dirección]?"
+     REGLA ESTRICTA: NO envíes el catálogo de productos ni la lista de precios a clientes recurrentes que tienen pedido habitual. Solo ofréceles confirmar su pedido habitual ("Sí", "Por favor", "Lo de siempre").
    - Si el cliente responde afirmativamente ("Sí", "Por favor", "Simón", "Mándalo", "Lo de siempre", "Ok"):
      EJECUTA INMEDIATAMENTE la herramienta 'crear_pedido' con esos productos y dirección. ¡El pedido debe quedar creado en esa única respuesta del cliente!
-   - Si el cliente pide algo distinto (ej. "No, ahora quiero 1 normal"), atiéndelo de inmediato con lo que pida.
+   - ÚNICAMENTE si el cliente dice que quiere algo diferente o pregunta por otros productos, muéstrale los productos disponibles.
 
 2. CLIENTE NUEVO O SIN PEDIDO PREVIO (VENTA PROACTIVA EN EL PRIMER MENSAJE):
-   - Si el cliente NO tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO" y solo saluda o indica que quiere ordenar (ej. "Hola", "Buenas", "Quiero un pedido"):
+   - APLICA ÚNICAMENTE si el cliente NO tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO" y solo saluda o indica que quiere ordenar:
      NUNCA respondas con un saludo vacío o pasivo ("¿En qué te ayudo?"). EN ESE MISMO PRIMER MENSAJE:
      1. Salúdalo y dale la bienvenida.
      2. MUESTRA LA LISTA DE PRODUCTOS DISPONIBLES CON SUS PRECIOS.
