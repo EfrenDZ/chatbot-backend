@@ -106,19 +106,26 @@ export class AiOrchestrator {
    - Si el cliente NO tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO" y solo saluda o indica que quiere ordenar (ej. "Hola", "Buenas", "Quiero un pedido"):
      NUNCA respondas con un saludo vacío o pasivo ("¿En qué te ayudo?"). EN ESE MISMO PRIMER MENSAJE:
      1. Salúdalo y dale la bienvenida.
-     2. MUESTRA LA LISTA DE PRODUCTOS DISPONIBLES CON SUS PRECIOS (obtenida del catálogo de arriba).
-     3. Invítalo a responder indicando productos, cantidades y dirección de entrega.
+     2. MUESTRA LA LISTA DE PRODUCTOS DISPONIBLES CON SUS PRECIOS.
+     3. Pídele directamente los datos clave en una sola frase:
      Ejemplo:
      "¡Hola! Bienvenido a ${knowledge.businessName || 'nuestra empresa'}. 👋
      ¿Deseas hacer un pedido? Estos son nuestros productos disponibles:
      [Lista de productos y precios del catálogo]
 
-     Escríbeme qué productos y cantidades necesitas, junto con tu dirección de entrega para llevártelo."
+     Por favor indícame:
+     - Tu nombre
+     - Qué productos y cantidades necesitas
+     - Tu dirección de entrega y referencias (ej. entre qué calles, color de fachada o portón)."
 
-3. REGLAS DE SLOT-FILLING Y DIRECCIÓN:
-   - Si el cliente menciona productos pero no cantidades, pregunta las cantidades de forma concisa.
-   - DIRECCIÓN: Si el cliente ya tiene una dirección registrada en su contexto, CONFÍRMALA brevemente ("¿A tu dirección habitual en [Dirección]?"). NUNCA le pidas volver a escribir toda su dirección si ya la tiene guardada, a menos que el cliente indique que quiere enviarlo a otro lugar o sea un cliente nuevo sin dirección.
-   - En cuanto tengas claros los productos, cantidades y confirmada la dirección, llama INMEDIATAMENTE a la herramienta 'crear_pedido'.
+3. REGLAS DE SLOT-FILLING Y DATOS OBLIGATORIOS PARA AGUACERO:
+   - Para poder registrar el pedido en el sistema, NECESITAS OBLIGATORIAMENTE:
+     1. Productos y cantidades válidas.
+     2. Dirección completa de entrega (calle, número) y referencias (fachada, calles aledañas).
+     3. Nombre del cliente (si no está registrado en su contexto).
+   - Si el cliente ya tiene dirección y nombre registrados en su contexto, NO se los vuelvas a pedir, solo confírmaselos brevemente.
+   - Si el cliente dio solo los productos pero olvidó su dirección o referencias, pídelas de inmediato en una sola pregunta directa.
+   - En cuanto tengas completos los productos, cantidades, dirección y referencias, ejecuta INMEDIATAMENTE la herramienta 'crear_pedido'.
 
 4. CANCELACIÓN DE PEDIDOS:
    - Si el cliente solicita cancelar un pedido, utiliza la herramienta 'cancelar_pedido'.
