@@ -70,9 +70,9 @@ export class AiOrchestrator {
       }
       if (sessionMetadata.ultimo_pedido) {
         const up = sessionMetadata.ultimo_pedido;
-        const resumen = up.resumen_texto || (up.detalles ? up.detalles.map((d: any) => `${d.cantidad}x ${d.nombre_producto || d.producto_nombre}`).join(', ') : '');
+        const resumen = up.resumen_texto || (up.detalles ? up.detalles.map((d: any) => `-${d.cantidad}x ${d.nombre_producto || d.producto_nombre}`).join('\n') : '');
         if (resumen && resumen.trim().length > 0 && Number(up.total) > 0) {
-          metaParts.push(`- ÚLTIMO PEDIDO HABITUAL REGISTRADO:\n  ${resumen}\n  Total: $${up.total}`);
+          metaParts.push(`- ÚLTIMO PEDIDO HABITUAL REGISTRADO:\n${resumen}`);
         }
       }
       if (sessionMetadata.pedidos_activos && Array.isArray(sessionMetadata.pedidos_activos) && sessionMetadata.pedidos_activos.length > 0) {
@@ -98,9 +98,20 @@ export class AiOrchestrator {
     promptParts.push(`INSTRUCCIONES DE ATENCIÓN Y TOMA DE PEDIDOS (EFICIENCIA MÁXIMA EN MENSAJES - PROTOCOLO RÁPIDO):
 1. CLIENTE RECURRENTE (ESTRATEGIA 1-CLIC / LO MISMO DE SIEMPRE):
    - Si el cliente tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO":
-     SALÚDALO POR SU NOMBRE Y OFRÉCELE DIRECTAMENTE REPETIR SU PEDIDO HABITUAL EN EL PRIMER MENSAJE:
-     Ejemplo: "¡Hola [Nombre]! 👋 ¿Te mandamos lo mismo de siempre? ([Productos del pedido habitual] por $[Total]) a tu dirección en [Dirección]?"
-     REGLA ESTRICTA: NO envíes el catálogo de productos ni la lista de precios a clientes recurrentes que tienen pedido habitual. Solo ofréceles confirmar su pedido habitual ("Sí", "Por favor", "Lo de siempre").
+     SALÚDALO POR SU NOMBRE Y OFRÉCELE DIRECTAMENTE REPETIR SU PEDIDO HABITUAL EN EL PRIMER MENSAJE USANDO EXACTAMENTE ESTE FORMATO LIMPIO CON VIÑETAS:
+     
+     "¡Hola [Nombre]! 👋 ¿Te mandamos lo mismo de siempre? 
+     [Lista de productos del pedido habitual con viñetas]
+     a tu dirección en [Dirección]?"
+
+     Ejemplo exacto de cómo debes responder:
+     "¡Hola Efren Dueñas! 👋 ¿Te mandamos lo mismo de siempre? 
+     -3x Garrafon normal - $72
+     -1x Ciel - $24
+     -TOTAL: $96.00 
+     a tu dirección en Adolfo de la Huerta 154?"
+
+     REGLA ESTRICTA: NO envíes el catálogo de productos ni la lista de precios a clientes recurrentes que tienen pedido habitual. Solo ofréceles confirmar su pedido habitual con este formato de viñetas para que confirmen en 1 mensaje ("Sí", "Por favor", "Lo de siempre").
    - Si el cliente responde afirmativamente ("Sí", "Por favor", "Simón", "Mándalo", "Lo de siempre", "Ok"):
      EJECUTA INMEDIATAMENTE la herramienta 'crear_pedido' con esos productos y dirección. ¡El pedido debe quedar creado en esa única respuesta del cliente!
    - ÚNICAMENTE si el cliente dice que quiere algo diferente o pregunta por otros productos, muéstrale los productos disponibles.
