@@ -142,7 +142,7 @@ export class AiOrchestrator {
       : (session.sessionMetadata || {});
 
     // Inyección de contexto dinámico desde apiBaseUrl/contexto
-    if (config.apiBaseUrl && (!metadata || !metadata.cliente)) {
+    if (config.apiBaseUrl) {
       try {
         let headers: any = { 'Content-Type': 'application/json' };
         if (config.apiHeaders) {
