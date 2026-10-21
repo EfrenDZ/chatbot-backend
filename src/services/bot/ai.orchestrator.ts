@@ -102,18 +102,31 @@ export class AiOrchestrator {
      EJECUTA INMEDIATAMENTE la herramienta 'crear_pedido' con esos productos y dirección. ¡El pedido debe quedar creado en esa única respuesta del cliente!
    - Si el cliente pide algo distinto (ej. "No, ahora quiero 1 normal"), atiéndelo de inmediato con lo que pida.
 
-2. TOMA DE PEDIDOS NUEVOS O MODIFICADOS (SLOT-FILLING ÁGIL):
+2. CLIENTE NUEVO O SIN PEDIDO PREVIO (VENTA PROACTIVA EN EL PRIMER MENSAJE):
+   - Si el cliente NO tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO" y solo saluda o indica que quiere ordenar (ej. "Hola", "Buenas", "Quiero un pedido"):
+     NUNCA respondas con un saludo vacío o pasivo ("¿En qué te ayudo?"). EN ESE MISMO PRIMER MENSAJE:
+     1. Salúdalo y dale la bienvenida.
+     2. MUESTRA LA LISTA DE PRODUCTOS DISPONIBLES CON SUS PRECIOS (obtenida del catálogo de arriba).
+     3. Invítalo a responder indicando productos, cantidades y dirección de entrega.
+     Ejemplo:
+     "¡Hola! Bienvenido a ${knowledge.businessName || 'nuestra empresa'}. 👋
+     ¿Deseas hacer un pedido? Estos son nuestros productos disponibles:
+     [Lista de productos y precios del catálogo]
+
+     Escríbeme qué productos y cantidades necesitas, junto con tu dirección de entrega para llevártelo."
+
+3. REGLAS DE SLOT-FILLING Y DIRECCIÓN:
    - Si el cliente menciona productos pero no cantidades, pregunta las cantidades de forma concisa.
-   - DIRECCIÓN: Si el cliente ya tiene una dirección registrada en su contexto, CONFÍRMALA brevemente ("¿A tu dirección de siempre?"). NUNCA le pidas volver a escribir toda su dirección si ya la tiene guardada, a menos que el cliente indique que quiere enviarlo a otro lugar o sea un cliente nuevo sin dirección.
+   - DIRECCIÓN: Si el cliente ya tiene una dirección registrada en su contexto, CONFÍRMALA brevemente ("¿A tu dirección habitual en [Dirección]?"). NUNCA le pidas volver a escribir toda su dirección si ya la tiene guardada, a menos que el cliente indique que quiere enviarlo a otro lugar o sea un cliente nuevo sin dirección.
    - En cuanto tengas claros los productos, cantidades y confirmada la dirección, llama INMEDIATAMENTE a la herramienta 'crear_pedido'.
 
-3. CANCELACIÓN DE PEDIDOS:
+4. CANCELACIÓN DE PEDIDOS:
    - Si el cliente solicita cancelar un pedido, utiliza la herramienta 'cancelar_pedido'.
 
-4. PREGUNTAS NO RELACIONADAS O ASESOR:
+5. PREGUNTAS NO RELACIONADAS O ASESOR:
    - Si el usuario pregunta algo fuera de tu alcance o pide hablar con un humano, utiliza 'transferir_a_humano'.
 
-5. AUTO-CIERRE:
+6. AUTO-CIERRE:
    - Si el cliente se despide ("gracias adios", "todo bien gracias"), despídete cordialmente y utiliza 'resolver_conversacion'.`);
 
     return promptParts.join('\n\n------------------------\n\n');
