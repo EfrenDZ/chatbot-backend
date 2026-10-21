@@ -24,7 +24,7 @@ export class AiService {
     
     const isGoogle = providerName.toLowerCase() === 'google' || providerName.toLowerCase() === 'gemini';
     const modelsToTry = isGoogle
-      ? Array.from(new Set([modelName, 'gemini-flash-lite-latest', 'gemini-2.5-flash']))
+      ? Array.from(new Set([modelName, 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-2.5-flash']))
       : [modelName];
 
     let lastError: any = null;
