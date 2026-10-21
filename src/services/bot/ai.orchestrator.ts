@@ -150,19 +150,77 @@ export class AiOrchestrator {
    - En cuanto tengas completos los productos, cantidades, dirección y referencias, ejecuta INMEDIATAMENTE la herramienta 'crear_pedido'.
      REGLA CRUCIAL PARA 'crear_pedido': SIEMPRE debes extraer de la conversación los productos y cantidades acordadas y pasarlos en el parámetro 'items' (ej. items: [{ producto: "Garrafon normal", cantidad: 5 }]). NUNCA envíes 'items' vacío ni transfieras a un humano si ya tienes los datos para crear el pedido.
 
-4. CANCELACIÓN DE PEDIDOS:
+4. MODIFICACIÓN DE PEDIDOS ACTIVOS:
+   - Si el cliente cuenta con pedidos activos (listados en "Pedidos activos del cliente") y solicita cambiar productos, corregir cantidades o cambiar la dirección de entrega de su pedido (ej. "Cámbiame la dirección", "Es otra dirección", "Mejor que sean 2", "Agrega 1 ciel"):
+     * DEBES USAR OBLIGATORIAMENTE la herramienta 'modificar_pedido'.
+     * ESTÁ ESTRICTAMENTE PROHIBIDO usar 'crear_pedido' cuando el cliente está editando, corrigiendo o cambiando un pedido activo existente. Usar 'crear_pedido' crearía un pedido duplicado en el sistema.
+     * Pasa los datos modificados: la nueva dirección limpia en 'direccion' y/o los productos actualizados en 'items'.
+
+5. REGLAS ESTRICTAS DE FORMATO Y LIMPIEZA:
+   - DIRECCIONES LIMPIAS: NUNCA coloques aclaraciones, comentarios, notas ni textos entre paréntesis en 'direccion' ni en tus mensajes (ej. NUNCA pongas "(Referencia proporcionada por el cliente)", "(Ubicación habitual)"). Coloca ÚNICAMENTE la calle, número y datos limpios.
+   - CÓDIGOS DE RASTREO: NUNCA menciones códigos de rastreo (como AC...) en los mensajes al cliente. La confirmación debe ser directa, breve y limpia.
+
+6. CANCELACIÓN DE PEDIDOS:
    - Si el cliente solicita cancelar un pedido, utiliza la herramienta 'cancelar_pedido'.
 
-5. PREGUNTAS NO RELACIONADAS O ASESOR:
+7. PREGUNTAS NO RELACIONADAS O ASESOR:
    - Utiliza 'transferir_a_humano' ÚNICAMENTE si:
      a) El cliente solicita explícitamente hablar con una persona ("quiero hablar con un humano", "pásame a un asesor", "comunícame con alguien").
      b) Hay una queja o reclamo grave fuera de la venta o cancelación de pedidos.
    - NUNCA transfieras a humano durante la toma de pedidos, cotizaciones, cambios de productos, cambios de dirección o selección de cantidades. Tú eres un asistente autónomo con capacidad completa para gestionar pedidos y direcciones.
 
-6. AUTO-CIERRE:
+8. AUTO-CIERRE:
    - Si el cliente se despide ("gracias adios", "todo bien gracias"), despídete cordialmente y utiliza 'resolver_conversacion'.`);
 
     return promptParts.join('\n\n------------------------\n\n');
+  }
+
+  private static sanitizeAddress(val?: string): string | undefined {
+    if (!val) return undefined;
+    return val
+      .replace(/\s*\([^)]*(?:referencia|cliente|proporcionad|nota|aclaraci|habitual|ubicaci)[^)]*\)/gi, '')
+      .replace(/\s*\(\s*\)/g, '')
+      .trim();
+  }
+
+  private static normalizeStr(str: string): string {
+    return (str || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+  }
+
+  private static findCatalogMatch(itemProdName: string, catList: any[]) {
+    if (!catList || catList.length === 0) return null;
+    const normItem = this.normalizeStr(itemProdName);
+    const exact = catList.find(c => this.normalizeStr(c.name) === normItem);
+    if (exact) return exact;
+
+    const sub = catList.find(c => {
+      const normCat = this.normalizeStr(c.name);
+      return normItem.includes(normCat) || normCat.includes(normItem);
+    });
+    if (sub) return sub;
+
+    const itemWords = normItem.split(/\s+/).map(w => w.replace(/(es|s)$/, '')).filter(w => w.length > 2);
+    let bestScore = 0;
+    let bestMatch = null;
+    for (const c of catList) {
+      const normCat = this.normalizeStr(c.name);
+      const catWords = normCat.split(/\s+/).map(w => w.replace(/(es|s)$/, '')).filter(w => w.length > 2);
+      let score = 0;
+      for (const iw of itemWords) {
+        if (catWords.some(cw => cw === iw || cw.includes(iw) || iw.includes(cw))) {
+          score++;
+        }
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = c;
+      }
+    }
+    return bestScore > 0 ? bestMatch : null;
   }
 
   static async processAiMessage(account: Account, session: ConversationSession, cwConvId: number, content: string) {
@@ -248,7 +306,7 @@ export class AiOrchestrator {
       return;
     }
 
-    const hasTerminalAction = aiResult.isOrderCreated || aiResult.isOrderCancelled || aiResult.isHandoff || aiResult.isResolved;
+    const hasTerminalAction = aiResult.isOrderCreated || aiResult.isOrderModified || aiResult.isOrderCancelled || aiResult.isHandoff || aiResult.isResolved;
 
     // Si la IA responde texto ordinario sin acciones terminales, lo guardamos y enviamos
     if (!hasTerminalAction && aiResult.text.trim().length > 0) {
@@ -297,46 +355,8 @@ export class AiOrchestrator {
         }));
       }
 
-      const normalizeStr = (str: string) => (str || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim();
-
-      const findCatalogMatch = (itemProdName: string, catList: any[]) => {
-        if (!catList || catList.length === 0) return null;
-        const normItem = normalizeStr(itemProdName);
-        const exact = catList.find(c => normalizeStr(c.name) === normItem);
-        if (exact) return exact;
-
-        const sub = catList.find(c => {
-          const normCat = normalizeStr(c.name);
-          return normItem.includes(normCat) || normCat.includes(normItem);
-        });
-        if (sub) return sub;
-
-        const itemWords = normItem.split(/\s+/).map(w => w.replace(/(es|s)$/, '')).filter(w => w.length > 2);
-        let bestScore = 0;
-        let bestMatch = null;
-        for (const c of catList) {
-          const normCat = normalizeStr(c.name);
-          const catWords = normCat.split(/\s+/).map(w => w.replace(/(es|s)$/, '')).filter(w => w.length > 2);
-          let score = 0;
-          for (const iw of itemWords) {
-            if (catWords.some(cw => cw === iw || cw.includes(iw) || iw.includes(cw))) {
-              score++;
-            }
-          }
-          if (score > bestScore) {
-            bestScore = score;
-            bestMatch = c;
-          }
-        }
-        return bestScore > 0 ? bestMatch : null;
-      };
-
       const detalle = items.map((it: any) => {
-        const matched = findCatalogMatch(it.producto, catalog);
+        const matched = AiOrchestrator.findCatalogMatch(it.producto, catalog);
         return {
           producto_id: matched?.id || null,
           nombre_producto: matched?.name || it.producto,
@@ -355,11 +375,13 @@ export class AiOrchestrator {
       }
 
       const clientInfo = metadata.cliente || {};
+      const rawDir = aiResult.orderData?.direccion || clientInfo.direccion_predeterminada || clientInfo.direccion;
+      const rawRef = aiResult.orderData?.referencias || clientInfo.referencias_predeterminadas || clientInfo.referencias;
       const orderPayload = {
         telefono: session.contactIdentifier,
         nombre: clientInfo.nombre || 'Cliente WhatsApp',
-        direccion: aiResult.orderData?.direccion || clientInfo.direccion_predeterminada || clientInfo.direccion,
-        referencias: aiResult.orderData?.referencias || clientInfo.referencias_predeterminadas || clientInfo.referencias,
+        direccion: AiOrchestrator.sanitizeAddress(rawDir),
+        referencias: AiOrchestrator.sanitizeAddress(rawRef),
         notas: aiResult.orderData?.notas_generales,
         detalle
       };
@@ -372,7 +394,7 @@ export class AiOrchestrator {
         });
         const orderData = await orderRes.json();
         if (orderRes.ok && orderData.status === 'success') {
-          const confirmation = orderData.mensaje || `¡Listo! Tu pedido ha sido confirmado. Código de seguimiento: ${orderData.codigo_rastreo || ''}`;
+          const confirmation = orderData.mensaje || '¡Listo! Tu pedido ha sido confirmado.';
           await prisma.messageLog.create({
             data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: confirmation }
           });
@@ -392,6 +414,79 @@ export class AiOrchestrator {
       } catch (err) {
         console.error('[BotEngine] Error enviando pedido a webhook:', err);
         await FlowRouter.executeHandoff(account, session, cwConvId, "Error de conexión al registrar tu pedido. Te comunico con un asesor.");
+      }
+      return;
+    }
+
+    // TOOL CALL: MODIFICAR PEDIDO
+    if (aiResult.isOrderModified && config.apiBaseUrl) {
+      console.log(`[BotEngine] IA ejecutó modificar_pedido en sesión ${session.id}`, aiResult.modifyData);
+
+      const dynamicCat = metadata.catalogo;
+      const catalog = (dynamicCat && Array.isArray(dynamicCat) && dynamicCat.length > 0)
+        ? dynamicCat.map((c: any) => ({ id: c.id, name: c.nombre || c.name, price: c.precio ?? c.price }))
+        : ((config.aiKnowledge as any)?.catalog || []);
+
+      const items = aiResult.modifyData?.items;
+      let detalle = undefined;
+
+      if (items && Array.isArray(items) && items.length > 0) {
+        detalle = items.map((it: any) => {
+          const matched = AiOrchestrator.findCatalogMatch(it.producto, catalog);
+          return {
+            producto_id: matched?.id || null,
+            nombre_producto: matched?.name || it.producto,
+            cantidad: it.cantidad,
+            precio: matched?.price ? parseFloat(matched.price) : 0,
+            notas: it.notas
+          };
+        });
+      }
+
+      let headers: any = { 'Content-Type': 'application/json' };
+      if (config.apiHeaders) {
+        try {
+          const parsed = typeof config.apiHeaders === 'string' ? JSON.parse(config.apiHeaders) : config.apiHeaders;
+          headers = { ...headers, ...parsed };
+        } catch (e) {}
+      }
+
+      const modifyPayload = {
+        telefono: session.contactIdentifier,
+        codigo: aiResult.modifyData?.codigo_pedido,
+        direccion: AiOrchestrator.sanitizeAddress(aiResult.modifyData?.direccion),
+        referencias: AiOrchestrator.sanitizeAddress(aiResult.modifyData?.referencias),
+        detalle
+      };
+
+      try {
+        const modifyRes = await fetch(`${config.apiBaseUrl}/pedidos/modificar`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(modifyPayload)
+        });
+        const modifyData = await modifyRes.json();
+        if (modifyRes.ok && modifyData.status === 'success') {
+          const confirmation = modifyData.mensaje || '¡Listo! Tu pedido ha sido modificado exitosamente.';
+          await prisma.messageLog.create({
+            data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: confirmation }
+          });
+          if (account.chatwootAccessToken) {
+            await ChatwootService.sendMessage(
+              account.chatwootApiUrl,
+              account.chatwootAccessToken,
+              account.chatwootAccountId,
+              cwConvId,
+              confirmation
+            );
+          }
+        } else {
+          const errMsg = modifyData.mensaje || modifyData.msg || "Hubo un inconveniente al modificar el pedido.";
+          await FlowRouter.executeHandoff(account, session, cwConvId, `${errMsg} Te comunico con un asesor.`);
+        }
+      } catch (err) {
+        console.error('[BotEngine] Error enviando modificación de pedido a webhook:', err);
+        await FlowRouter.executeHandoff(account, session, cwConvId, "Error de conexión al modificar tu pedido. Te comunico con un asesor.");
       }
       return;
     }

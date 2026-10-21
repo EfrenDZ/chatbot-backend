@@ -11,6 +11,8 @@ export interface AiResponse {
   orderData?: any;
   isOrderCancelled: boolean;
   cancelData?: any;
+  isOrderModified: boolean;
+  modifyData?: any;
 }
 
 export class AiService {
@@ -67,9 +69,22 @@ export class AiService {
               cantidad: z.number().int().positive().describe('Cantidad solicitada'),
               notas: z.string().optional().describe('Detalles específicos de este ítem')
             })).min(1).describe('Lista de productos o servicios solicitados'),
-            direccion: z.string().optional().describe('Dirección de entrega. Omitir si el cliente confirma usar su dirección registrada'),
-            referencias: z.string().optional().describe('Referencias de la ubicación o domicilio'),
+            direccion: z.string().optional().describe('Dirección de entrega limpia (calle y número). NUNCA agregues aclaraciones, notas ni textos entre paréntesis como "(referencia del cliente)"'),
+            referencias: z.string().optional().describe('Referencias de ubicación (ej. color de fachada, entrecalles). NUNCA agregues textos entre paréntesis'),
             notas_generales: z.string().optional().describe('Instrucciones adicionales para la entrega')
+          }),
+        },
+        modificar_pedido: {
+          description: 'Modifica un pedido activo existente que aún no ha sido asignado a un repartidor (ej. cambiar productos, cantidades o dirección). Úsala cuando el cliente solicite cambiar o corregir un pedido ya registrado en lugar de crear uno nuevo.',
+          parameters: z.object({
+            codigo_pedido: z.string().optional().describe('Código del pedido si se conoce'),
+            items: z.array(z.object({
+              producto: z.string().describe('Nombre del producto o servicio del catálogo'),
+              cantidad: z.number().int().positive().describe('Cantidad solicitada'),
+              notas: z.string().optional().describe('Detalles específicos de este ítem')
+            })).optional().describe('Nuevos productos o cantidades del pedido'),
+            direccion: z.string().optional().describe('Nueva dirección de entrega limpia si cambió. NUNCA agregues textos entre paréntesis'),
+            referencias: z.string().optional().describe('Nuevas referencias de ubicación')
           }),
         },
         cancelar_pedido: {
@@ -136,6 +151,8 @@ export class AiService {
       let orderData = null;
       let isOrderCancelled = false;
       let cancelData = null;
+      let isOrderModified = false;
+      let modifyData = null;
 
       if (toolCalls && toolCalls.length > 0) {
         for (const tc of toolCalls) {
@@ -148,6 +165,10 @@ export class AiService {
           if (tc.toolName === 'cancelar_pedido') {
             isOrderCancelled = true;
             cancelData = (tc as any).input || (tc as any).args;
+          }
+          if (tc.toolName === 'modificar_pedido') {
+            isOrderModified = true;
+            modifyData = (tc as any).input || (tc as any).args;
           }
         }
       }
@@ -163,7 +184,9 @@ export class AiService {
         isOrderCreated,
         orderData,
         isOrderCancelled,
-        cancelData
+        cancelData,
+        isOrderModified,
+        modifyData
       };
       } catch (error: any) {
         lastError = error;
@@ -177,7 +200,8 @@ export class AiService {
       isHandoff: false, 
       isResolved: false, 
       isOrderCreated: false, 
-      isOrderCancelled: false 
+      isOrderCancelled: false,
+      isOrderModified: false
     };
   }
 }
