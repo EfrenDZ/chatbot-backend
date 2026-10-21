@@ -22,35 +22,34 @@ export class AiService {
     dynamicTools: any[] = []
   ): Promise<AiResponse> {
     
-    let model;
+    const isGoogle = providerName.toLowerCase() === 'google' || providerName.toLowerCase() === 'gemini';
+    const modelsToTry = isGoogle
+      ? Array.from(new Set([modelName, 'gemini-flash-lite-latest', 'gemini-2.5-flash']))
+      : [modelName];
 
-    switch (providerName.toLowerCase()) {
-      case 'google':
-      case 'gemini':
-        const googleProvider = createGoogleGenerativeAI({
-          apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY,
-        });
-        model = googleProvider(modelName);
-        break;
+    let lastError: any = null;
 
-      case 'deepseek':
-        const deepseek = createOpenAI({
-          baseURL: 'https://api.deepseek.com/v1',
-          apiKey: process.env.DEEPSEEK_API_KEY,
-        });
-        model = deepseek(modelName);
-        break;
+    for (const currentModel of modelsToTry) {
+      try {
+        let model;
 
-      case 'openai':
-      default:
-        const openai = createOpenAI({
-          apiKey: process.env.OPENAI_API_KEY,
-        });
-        model = openai(modelName);
-        break;
-    }
-
-    try {
+        if (isGoogle) {
+          const googleProvider = createGoogleGenerativeAI({
+            apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY,
+          });
+          model = googleProvider(currentModel);
+        } else if (providerName.toLowerCase() === 'deepseek') {
+          const deepseek = createOpenAI({
+            baseURL: 'https://api.deepseek.com/v1',
+            apiKey: process.env.DEEPSEEK_API_KEY,
+          });
+          model = deepseek(currentModel);
+        } else {
+          const openai = createOpenAI({
+            apiKey: process.env.OPENAI_API_KEY,
+          });
+          model = openai(currentModel);
+        }
       const tools: Record<string, any> = {
         transferir_a_humano: {
           description: 'Transfiere la conversación a un asesor humano en vivo. Úsala ÚNICAMENTE cuando el usuario lo solicite de manera explícita (ej. "quiero hablar con una persona", "pásame a un asesor"). ESTÁ ESTRICTAMENTE PROHIBIDO usarla ante cambios de dirección, dudas de productos, preguntas o durante la toma de pedidos.',
@@ -166,15 +165,19 @@ export class AiService {
         isOrderCancelled,
         cancelData
       };
-    } catch (error) {
-      console.error('[AiService] Error generando texto:', error);
-      return { 
-        text: "[ERROR_IA]", 
-        isHandoff: false, 
-        isResolved: false, 
-        isOrderCreated: false, 
-        isOrderCancelled: false 
-      };
+      } catch (error: any) {
+        lastError = error;
+        console.warn(`[AiService] Falló modelo ${currentModel}: ${error?.message || error}. Intentando siguiente modelo...`);
+      }
     }
+
+    console.error('[AiService] Todos los modelos fallaron. Último error:', lastError);
+    return { 
+      text: "[ERROR_IA]", 
+      isHandoff: false, 
+      isResolved: false, 
+      isOrderCreated: false, 
+      isOrderCancelled: false 
+    };
   }
 }
