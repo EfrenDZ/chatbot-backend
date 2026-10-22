@@ -88,7 +88,7 @@ export class AiService {
           }),
         },
         cancelar_pedido: {
-          description: 'Cancela un pedido que se encuentra pendiente de entrega.',
+          description: 'Cancela un pedido activo del cliente. REGLA OBLIGATORIA: NUNCA llames a esta herramienta inmediatamente si el cliente solo dice "cancélalo", "ya no lo quiero" o similar sin haber explicado el motivo. Primero pregúntale amablemente el motivo ("¿Podrías decirnos el motivo de la cancelación? Nos ayuda mucho a mejorar"). Llama a esta herramienta ÚNICAMENTE cuando el cliente ya te haya compartido la razón de cancelación o si insiste expresamente en cancelar sin dar motivo.',
           parameters: z.object({
             codigo_pedido: z.string().optional().describe('Código de rastreo o identificador del pedido a cancelar'),
             motivo: z.string().optional().describe('Motivo de la cancelación proporcionado por el cliente')

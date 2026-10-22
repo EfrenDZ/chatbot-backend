@@ -77,7 +77,7 @@ export class AiOrchestrator {
       }
       if (sessionMetadata.pedidos_activos && Array.isArray(sessionMetadata.pedidos_activos) && sessionMetadata.pedidos_activos.length > 0) {
         const pText = sessionMetadata.pedidos_activos.map((p: any) => 
-          `* Pedido #${p.id || ''} (Código: ${p.codigo_rastreo || p.codigo}) - Estado: ${p.estado_texto || p.estado} | Repartidor asignado: ${p.repartidor_asignado ? 'SÍ (EN RUTA / NO MODIFICABLE)' : 'NO (PENDIENTE / MODIFICABLE)'} | Total: $${p.total}`
+          `* Pedido #${p.id || ''} (Código: ${p.codigo_rastreo || p.codigo}) - Estado: ${p.estado_texto || p.estado} | Repartidor asignado: ${p.repartidor_asignado ? 'SÍ (EN RUTA)' : 'NO (PENDIENTE)'} | Total: $${p.total}`
         ).join('\n');
         metaParts.push(`- PEDIDOS ACTIVOS DEL CLIENTE:\n${pText}`);
       }
@@ -100,22 +100,22 @@ export class AiOrchestrator {
     promptParts.push(`INSTRUCCIONES DE ATENCIÓN Y TOMA DE PEDIDOS (EFICIENCIA MÁXIMA EN MENSAJES - PROTOCOLO RÁPIDO):
 1. CLIENTE CON PEDIDO ACTIVO EN CURSO (PRIORIDAD MÁXIMA):
    - APLICA OBLIGATORIAMENTE SI el cliente tiene pedidos listados en "PEDIDOS ACTIVOS DEL CLIENTE":
-     * CASO A (Repartidor asignado: SÍ / EN RUTA):
-       - En el saludo o primer mensaje, infórmale de inmediato el estado de su pedido:
-         "¡Hola [Nombre]! 👋 Tu pedido activo ya fue asignado a un repartidor y va en camino a tu dirección en [Dirección]. Se entregará a la brevedad."
-       - Si el cliente solicita editarlo, cambiar dirección, cambiar productos o cancelarlo:
-         Explícale amablemente que como su pedido ya se encuentra en camino con el repartidor, no es posible editarlo automáticamente, y EJECUTA la herramienta 'transferir_a_humano'.
-
-     * CASO B (Repartidor asignado: NO / PENDIENTE DE REVISIÓN Y ENTREGA):
-       - En el saludo o primer mensaje, recuérdale su pedido activo:
+     * En el saludo o primer mensaje, infórmale de inmediato de su pedido activo:
+       - Si ya tiene repartidor asignado:
+         "¡Hola [Nombre]! 👋 Tu pedido activo ya fue asignado a un repartidor y va en camino a tu dirección en [Dirección]. ¿Deseas modificar algún dato, cancelarlo o en qué te puedo ayudar?"
+       - Si aún está pendiente de asignación:
          "¡Hola [Nombre]! 👋 Tienes un pedido pendiente de entrega registrado a tu dirección en [Dirección]. ¿Deseas modificar algún dato (productos o dirección) o en qué te puedo ayudar?"
-       - Si el cliente solicita modificar o cambiar algo (ej. "quiero editarlo", "cambiar dirección", "cambiar garrafones"):
-         ¡ESTÁ TOTALMENTE PROHIBIDO LLAMAR A 'modificar_pedido' SIN LOS DATOS! Pregúntale amablemente qué desea cambiar:
-         * Dirección: "¡Con gusto! ¿A qué nueva dirección completa y referencias deseas enviarlo?"
-         * Productos: "¡Claro! ¿Qué productos o cantidades te gustaría modificar?"
-       - SOLO cuando el cliente te responda con la nueva dirección o los nuevos productos/cantidades:
-         EJECUTA la herramienta 'modificar_pedido' con los nuevos datos. El pedido se actualizará en el sistema y pasará a revisión del administrador para su entrega.
-       - ¡ESTÁ ESTRICTAMENTE PROHIBIDO usar 'crear_pedido' para un cliente que ya tiene un pedido activo que desea cambiar!
+     * Si el cliente solicita modificar o cambiar algo (ej. "quiero editarlo", "cambiar dirección", "cambiar garrafones"):
+       ¡ESTÁ TOTALMENTE PROHIBIDO LLAMAR A 'modificar_pedido' SIN LOS DATOS! Pregúntale amablemente qué desea cambiar:
+       * Dirección: "¡Con gusto! ¿A qué nueva dirección completa y referencias deseas enviarlo?"
+       * Productos: "¡Claro! ¿Qué productos o cantidades te gustaría modificar?"
+       SOLO cuando el cliente te responda con la nueva dirección o los nuevos productos/cantidades:
+       EJECUTA la herramienta 'modificar_pedido' con los nuevos datos. El pedido pasará a revisión del administrador para su validación.
+       ¡ESTÁ ESTRICTAMENTE PROHIBIDO usar 'crear_pedido' para un cliente que ya tiene un pedido activo que desea cambiar!
+     * Si el cliente solicita cancelarlo:
+       ¡REGLA OBLIGATORIA DE RETROALIMENTACIÓN!: NUNCA ejecutes 'cancelar_pedido' de golpe. Primero pregúntale amablemente:
+       "¿Podrías decirnos el motivo de tu cancelación? Nos ayuda mucho a mejorar."
+       Una vez que el cliente te proporcione el motivo (o si insiste en cancelar sin dar motivo), ejecuta la herramienta 'cancelar_pedido' pasando el parámetro 'motivo'.
 
 2. CLIENTE RECURRENTE SIN PEDIDOS ACTIVOS (PRIORIDAD 2 - ESTRATEGIA 1-CLIC / LO MISMO DE SIEMPRE):
    - APLICA ÚNICAMENTE si el cliente NO TIENE pedidos activos en curso, pero SÍ tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO":
@@ -176,14 +176,13 @@ export class AiOrchestrator {
    - CÓDIGOS DE RASTREO: NUNCA menciones códigos de rastreo (como AC...) en los mensajes al cliente. La confirmación debe ser directa, breve y limpia.
 
 6. CANCELACIÓN DE PEDIDOS:
-   - Si el cliente solicita cancelar un pedido pendiente (sin repartidor asignado), utiliza la herramienta 'cancelar_pedido'. Si ya tiene repartidor asignado, explícaselo y transfiere a un humano.
+   - Si el cliente solicita cancelar un pedido activo, NUNCA ejecutes 'cancelar_pedido' de inmediato. Pregúntale amablemente el motivo de cancelación ("¿Podrías decirnos el motivo de la cancelación? Nos ayuda mucho a mejorar."). Una vez que te responda el motivo (o si insiste sin dar motivo), ejecuta 'cancelar_pedido' pasando el motivo.
 
 7. PREGUNTAS NO RELACIONADAS O ASESOR:
    - Utiliza 'transferir_a_humano' ÚNICAMENTE si:
      a) El cliente solicita explícitamente hablar con una persona ("quiero hablar con un humano", "pásame a un asesor", "comunícame con alguien").
-     b) El cliente desea modificar o cancelar un pedido que YA tiene repartidor asignado.
-     c) Hay una queja o reclamo grave fuera de la venta normal.
-   - NUNCA transfieras a humano durante la toma de pedidos, cotizaciones, o cuando un pedido sin repartidor pueda ser modificado normalmente por ti.
+     b) Hay una queja o reclamo grave fuera de la venta normal.
+   - NUNCA transfieras a humano durante la toma de pedidos, cotizaciones, o cuando un cliente desee modificar o cancelar su pedido activo.
 
 8. AUTO-CIERRE:
    - ¡PROHIBIDO AUTO-CERRAR TRAS CREAR O MODIFICAR UN PEDIDO!: NUNCA uses 'resolver_conversacion' inmediatamente después de registrar o modificar un pedido. Espera a que el cliente confirme que no necesita nada más.
@@ -465,14 +464,7 @@ export class AiOrchestrator {
         return;
       }
 
-      // GUARDRAIL 2: Si el pedido activo que se intenta modificar ya tiene repartidor asignado, transferir a humano
-      const targetOrder = metadata.pedidos_activos?.find((p: any) => !p.repartidor_asignado) || metadata.pedidos_activos?.[0];
-      if (targetOrder?.repartidor_asignado) {
-        console.log(`[BotEngine] Pedido ${targetOrder.id} ya tiene repartidor asignado. Transfiriendo a humano.`);
-        const assignedMsg = "Tu pedido ya fue asignado a un repartidor y se encuentra en ruta, por lo que no es posible modificarlo automáticamente. Te comunico con un asesor para que te ayude.";
-        await FlowRouter.executeHandoff(account, session, cwConvId, assignedMsg);
-        return;
-      }
+      const targetOrder = metadata.pedidos_activos?.[0];
 
       const dynamicCat = metadata.catalogo;
       const catalog = (dynamicCat && Array.isArray(dynamicCat) && dynamicCat.length > 0)
@@ -547,6 +539,26 @@ export class AiOrchestrator {
     if (aiResult.isOrderCancelled && config.apiBaseUrl) {
       console.log(`[BotEngine] IA ejecutó cancelar_pedido en sesión ${session.id}`, aiResult.cancelData);
       
+      // GUARDRAIL: Si no hay motivo de cancelación, pedirlo al cliente antes de cancelar en el sistema
+      const motivoProvided = aiResult.cancelData?.motivo && typeof aiResult.cancelData.motivo === 'string' && aiResult.cancelData.motivo.trim().length > 0;
+      if (!motivoProvided) {
+        console.log(`[BotEngine] cancelar_pedido llamado sin motivo. Solicitando motivo al cliente.`);
+        const askMotivoMsg = "¿Podrías comentarnos brevemente el motivo de tu cancelación? Tu opinión nos ayuda mucho a mejorar nuestro servicio.";
+        await prisma.messageLog.create({
+          data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: askMotivoMsg }
+        });
+        if (account.chatwootAccessToken) {
+          await ChatwootService.sendMessage(
+            account.chatwootApiUrl,
+            account.chatwootAccessToken,
+            account.chatwootAccountId,
+            cwConvId,
+            askMotivoMsg
+          );
+        }
+        return;
+      }
+
       let headers: any = { 'Content-Type': 'application/json' };
       if (config.apiHeaders) {
         try {
@@ -555,19 +567,24 @@ export class AiOrchestrator {
         } catch (e) {}
       }
 
+      const targetOrder = metadata?.pedidos_activos?.[0];
+
       try {
         const cancelRes = await fetch(`${config.apiBaseUrl}/pedidos/cancelar`, {
           method: 'POST',
           headers,
           body: JSON.stringify({
             telefono: session.contactIdentifier,
-            codigo: aiResult.cancelData?.codigo_pedido,
+            codigo: aiResult.cancelData?.codigo_pedido || targetOrder?.codigo_rastreo,
             motivo: aiResult.cancelData?.motivo
           })
         });
         const cancelData = await cancelRes.json();
         if (cancelRes.ok && cancelData.status === 'success') {
-          const cancelMsg = cancelData.mensaje || "Tu pedido ha sido cancelado con éxito.";
+          const cancelMsg = cancelData.mensaje || "Tu pedido ha sido cancelado con éxito. Agradecemos tus comentarios.";
+          await prisma.messageLog.create({
+            data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: cancelMsg }
+          });
           if (account.chatwootAccessToken) {
             await ChatwootService.sendMessage(
               account.chatwootApiUrl,
