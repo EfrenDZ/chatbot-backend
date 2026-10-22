@@ -64,6 +64,7 @@ export class AiService {
         crear_pedido: {
           description: 'Registra y confirma un pedido cuando el cliente ya indicó los productos, cantidades y la dirección de entrega.',
           parameters: z.object({
+            nombre: z.string().optional().describe('Nombre del cliente proporcionado en la conversación (ej. "Mayra", "Carlos Gómez")'),
             items: z.array(z.object({
               producto: z.string().describe('Nombre del producto o servicio del catálogo'),
               cantidad: z.number().int().positive().describe('Cantidad solicitada'),

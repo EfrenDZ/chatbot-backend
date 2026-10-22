@@ -169,7 +169,7 @@ export class AiOrchestrator {
      * Si el cliente acepta su dirección registrada, úsala.
      * Si el cliente proporciona o solicita una dirección diferente, adáptate de inmediato: solicita la nueva dirección si falta, o regístrala directamente en el parámetro 'direccion' de 'crear_pedido'. ¡NUNCA transfieras a un humano por un cambio de dirección!
    - En cuanto tengas completos los productos, cantidades, dirección y referencias, ejecuta INMEDIATAMENTE la herramienta 'crear_pedido'.
-     REGLA CRUCIAL PARA 'crear_pedido': SIEMPRE debes extraer de la conversación los productos y cantidades acordadas y pasarlos en el parámetro 'items' (ej. items: [{ producto: "Garrafon normal", cantidad: 5 }]). NUNCA envíes 'items' vacío ni transfieras a un humano si ya tienes los datos para crear el pedido.
+     REGLA CRUCIAL PARA 'crear_pedido': SIEMPRE debes extraer de la conversación los productos y cantidades acordadas y pasarlos en el parámetro 'items' (ej. items: [{ producto: "Garrafon normal", cantidad: 5 }]). SIEMPRE debes extraer el nombre del cliente que te haya proporcionado (ej. "Mayra", "Carlos") y pasarlo en el parámetro 'nombre'. NUNCA envíes 'items' vacío ni transfieras a un humano si ya tienes los datos para crear el pedido.
 
 5. REGLAS ESTRICTAS DE FORMATO Y LIMPIEZA:
    - DIRECCIONES LIMPIAS: NUNCA coloques aclaraciones, comentarios, notas ni textos entre paréntesis en 'direccion' ni en tus mensajes (ej. NUNCA pongas "(Referencia proporcionada por el cliente)", "(Ubicación habitual)"). Coloca ÚNICAMENTE la calle, número y datos limpios.
@@ -393,9 +393,17 @@ export class AiOrchestrator {
       const clientInfo = metadata.cliente || {};
       const rawDir = aiResult.orderData?.direccion || clientInfo.direccion_predeterminada || clientInfo.direccion;
       const rawRef = aiResult.orderData?.referencias || clientInfo.referencias_predeterminadas || clientInfo.referencias;
+      
+      let rawNombre = aiResult.orderData?.nombre?.trim();
+      if (!rawNombre || rawNombre.toLowerCase() === 'cliente whatsapp' || rawNombre.toLowerCase() === 'cliente bot') {
+        rawNombre = (clientInfo.nombre && clientInfo.nombre !== 'Cliente WhatsApp' && clientInfo.nombre !== 'Cliente Bot')
+          ? clientInfo.nombre
+          : undefined;
+      }
+
       const orderPayload = {
         telefono: session.contactIdentifier,
-        nombre: clientInfo.nombre || 'Cliente WhatsApp',
+        nombre: rawNombre || 'Cliente WhatsApp',
         direccion: AiOrchestrator.sanitizeAddress(rawDir),
         referencias: AiOrchestrator.sanitizeAddress(rawRef),
         notas: aiResult.orderData?.notas_generales,
