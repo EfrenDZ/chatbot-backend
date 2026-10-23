@@ -121,6 +121,23 @@ export class AiOrchestrator {
       } else if (sessionMetadata.fuera_de_horario) {
         metaParts.push(`- AVISO DE HORARIO: Actualmente estamos cerrados. Próximo día hábil: ${sessionMetadata.mensaje_horario || 'el siguiente día laboral'}. Si el cliente pide productos, aclárale que su entrega se agendará para ese horario.`);
       }
+      if (sessionMetadata.todos_los_horarios && Array.isArray(sessionMetadata.todos_los_horarios) && sessionMetadata.todos_los_horarios.length > 0) {
+        const diasNombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        const horariosText = sessionMetadata.todos_los_horarios.map((h: any) => {
+          const dia = diasNombres[h.dia_semana] !== undefined ? diasNombres[h.dia_semana] : `Día ${h.dia_semana}`;
+          if (!h.laborable) {
+            return `  * ${dia}: Cerrado (Día de descanso)`;
+          }
+          return `  * ${dia}: Abierto de ${h.hora_inicio || '08:00'} a corte de recepción de pedidos a las ${h.hora_corte || '15:00'}`;
+        }).join('\n');
+        metaParts.push(`- HORARIOS SEMANALES COMPLETOS DE SERVICIO:\n${horariosText}`);
+      }
+      if (sessionMetadata.dias_festivos && Array.isArray(sessionMetadata.dias_festivos) && sessionMetadata.dias_festivos.length > 0) {
+        const festivosText = sessionMetadata.dias_festivos.map((f: any) => {
+          return `  * Fecha: ${f.fecha} (${f.descripcion || 'Día Festivo'}) - ${f.pausar_reparto ? 'No laborable / Sin reparto' : 'Horario especial'}${f.mensaje_bot ? ` | Mensaje: "${f.mensaje_bot}"` : ''}`;
+        }).join('\n');
+        metaParts.push(`- DÍAS FESTIVOS REGISTRADOS:\n${festivosText}`);
+      }
       if (sessionMetadata.ultimo_repartidor) {
         metaParts.push(`- CHOFER HABITUAL DEL CLIENTE: ${sessionMetadata.ultimo_repartidor.nombre} (ID: ${sessionMetadata.ultimo_repartidor.id})`);
       }
@@ -175,7 +192,15 @@ export class AiOrchestrator {
      * Si el cliente solicita modificar o cambiar algo (ej. "quiero editarlo", "cambiar dirección", "cambiar garrafones", "cambiar fecha"):
        ¡ESTÁ TOTALMENTE PROHIBIDO LLAMAR A 'modificar_pedido' SIN LOS DATOS! Pregúntale amablemente qué desea cambiar:
        * Dirección: "¡Con gusto! ¿A qué nueva dirección completa deseas enviarlo?"
-       * Productos: "¡Claro! ¿Qué productos o cantidades te gustaría modificar?"
+       * Productos: ¡ENVÍA DE INMEDIATO LA LISTA DE PRODUCTOS DISPONIBLES EN VIÑETAS CON PRECIOS! NUNCA preguntes a ciegas sin mostrar el catálogo para evitar que el cliente deba preguntar qué productos venden.
+         Ejemplo:
+         "¡Claro! Te comparto los productos disponibles:
+         • Garrafon normal: $24
+         • Garrafon ciel: $24
+         • Garrafon epura: $24
+         • Galon normal: $13
+         • Litro: $10
+         ¿Qué productos y cantidades te gustaría ordenar?"
        * Fecha: "¡Claro! ¿Para qué fecha deseas programar tu entrega?"
        SOLO cuando el cliente te responda con los nuevos datos (dirección, productos o fecha):
        EJECUTA la herramienta 'modificar_pedido' con los nuevos datos. El pedido pasará a revisión del administrador para su validación.
@@ -223,7 +248,7 @@ export class AiOrchestrator {
      - CADA PRODUCTO DEBE IR OBLIGATORIAMENTE EN SU PROPIA VIÑETA con el símbolo '•' o '-': "• [Cantidad]x [Producto] - $[PrecioTotal]".
      - SIEMPRE incluye el precio total al final de cada viñeta.
      - ¡ESTÁ ESTRICTAMENTE PROHIBIDO omitir las viñetas, omitir el precio o usar formatos como "Garrafon normal (x2)"!
-     - ¡ESTÁ ESTRICTAMENTE PROHIBIDO enviar el catálogo de productos a clientes recurrentes que tienen pedido habitual! El cliente debe poder confirmar su pedido con 1 sola palabra ("Sí", "Por favor", "Lo de siempre").
+     - En el saludo / propuesta inicial de "lo de siempre", NO envíes el catálogo de productos completo; ofrece directamente lo habitual para que el cliente pueda confirmar con 1 sola palabra ("Sí", "Por favor", "Lo de siempre").
    - Si el cliente responde afirmativamente confirmando todo ("Sí", "Por favor", "Simón", "Mándalo", "Lo de siempre", "Ok"):
      ¡EJECUTA INMEDIATAMENTE la herramienta 'crear_pedido' con esos productos y dirección habitual!
      ¡ESTÁ ESTRICTAMENTE PROHIBIDO PREGUNTAR POR NOTAS O REFERENCIAS! Las notas y referencias son 100% opcionales. El pedido debe quedar creado en esa única respuesta del cliente.
@@ -232,7 +257,21 @@ export class AiOrchestrator {
      1. Si solo dice "es otra dirección" sin especificar cuál: Pídele su nueva dirección completa (calle y número) manteniendo los productos acordados.
      2. Si ya indica la nueva dirección: toma esa dirección y ejecuta de inmediato 'crear_pedido'. ¡NUNCA insistas por referencias ni notas!
 
-   - Si el cliente dice que quiere algo diferente o productos distintos, muéstrale los productos disponibles o toma su nuevo pedido.
+   - SI EL CLIENTE DICE "NO", RECHAZA "LO DE SIEMPRE", O PIDE CAMBIAR/ELEGIR PRODUCTOS DISTINTOS:
+     ¡ESTÁ TERMINANTEMENTE PROHIBIDO RESPONDER PREGUNTANDO "¿QUÉ DESEAS PEDIR?" O "¿QUÉ TE GUSTARÍA CAMBIAR?" SIN MOSTRAR LOS PRODUCTOS!
+     Si preguntas sin mostrar el catálogo, obligas al cliente a enviar otro mensaje preguntando qué productos venden y gastar mensajes innecesarios.
+     EN ESA MISMA RESPUESTA DEBES:
+     1. Aceptar amablemente su respuesta (ej. "¡Entendido, [Nombre]!").
+     2. ENVIAR OBLIGATORIAMENTE EL CATÁLOGO COMPLETO DE PRODUCTOS DISPONIBLES EN VIÑETAS CON SUS PRECIOS (tomado del CATÁLOGO DE PRODUCTOS / SERVICIOS).
+     3. Preguntarle directamente cuáles productos y cuántas piezas necesita.
+     Ejemplo exacto de respuesta si dice "No":
+     "¡Entendido, [Nombre]! 👍 Te comparto nuestros productos disponibles:
+     • Garrafon normal: $24
+     • Garrafon ciel: $24
+     • Garrafon epura: $24
+     • Galon normal: $13
+     • Litro: $10
+     ¿Cuáles y cuántos te gustaría pedir hoy?"
 
 3. CLIENTE NUEVO O SIN PEDIDO PREVIO (VENTA PROACTIVA EN EL PRIMER MENSAJE):
    - APLICA ÚNICAMENTE si el cliente NO tiene pedidos activos Y NO tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO" y solo saluda o indica que quiere ordenar:
@@ -275,13 +314,22 @@ export class AiOrchestrator {
 6. CANCELACIÓN DE PEDIDOS:
    - Si el cliente solicita cancelar un pedido activo, NUNCA ejecutes 'cancelar_pedido' de inmediato. Pregúntale amablemente el motivo de cancelación ("¿Podrías decirnos el motivo de la cancelación? Nos ayuda mucho a mejorar."). Una vez que te responda el motivo (o si insiste sin dar motivo), ejecuta 'cancelar_pedido' pasando el motivo.
 
-7. PREGUNTAS NO RELACIONADAS O ASESOR:
+7. CONSULTAS DE HORARIOS, DÍAS DE ATENCIÓN Y DÍAS FESTIVOS:
+   - Si el cliente pregunta si abren o atienden en un día específico (ej. "¿abren los domingos?", "¿qué días abren?", "¿a qué hora cierran los sábados?", "¿abren mañana?", "¿abren el 25 de diciembre?", "¿trabajan en Navidad?"):
+     * Consulta con detenimiento las secciones "HORARIOS SEMANALES COMPLETOS DE SERVICIO" y "DÍAS FESTIVOS REGISTRADOS".
+     * Responde de forma precisa, amable y directa con la información oficial:
+       - Si es un día laboral normal (ej. Lunes a Viernes o Sábado): indícale con exactitud la hora de apertura y la hora de corte para recepción de pedidos (ej. "Los sábados abrimos a las 8:00 y cerramos recepción de pedidos a las 13:00 hrs").
+       - Si es un día de descanso (ej. Domingo): indícale con claridad que ese día es de descanso y permanece cerrado, e infórmale qué días y a qué hora se reanuda el servicio (ej. "Los domingos descansamos y no tenemos servicio. Con gusto te atendemos de lunes a sábado a partir de las 8:00 am").
+       - Si es un día festivo registrado (ej. 25 de diciembre / Navidad): menciona la festividad, aclara que no se labora / no hay reparto por ser día festivo, e infórmale que los pedidos se programan para el siguiente día hábil (apoyándote en el mensaje configurado en el festivo si existe).
+     * ¡ESTÁ TOTALMENTE PROHIBIDO inventar horarios, dar información contradictoria o transferir a un asesor humano si la respuesta ya está en los horarios y festivos del contexto!
+
+8. PREGUNTAS NO RELACIONADAS O ASESOR:
    - Utiliza 'transferir_a_humano' ÚNICAMENTE si:
      a) El cliente solicita explícitamente hablar con una persona ("quiero hablar con un humano", "pásame a un asesor", "comunícame con alguien").
      b) Hay una queja o reclamo grave fuera de la venta normal.
-   - NUNCA transfieras a humano durante la toma de pedidos, cotizaciones, o cuando un cliente desee modificar o cancelar su pedido activo.
+   - NUNCA transfieras a humano durante la toma de pedidos, cotizaciones, consultas de horarios/festivos, o cuando un cliente desee modificar o cancelar su pedido activo.
 
-8. AGRADECIMIENTO Y FINALIZACIÓN:
+9. AGRADECIMIENTO Y FINALIZACIÓN:
    - Al confirmar el pedido, agradece siempre al cliente por su compra y preferencia. El sistema enviará el resumen y marcará automáticamente la conversación como finalizada en Chatwoot.
    - Si el cliente únicamente se despide o indica que no requiere nada más, despídete con amabilidad y utiliza 'resolver_conversacion'.`);
 
