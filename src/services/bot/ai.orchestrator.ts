@@ -77,9 +77,9 @@ export class AiOrchestrator {
       }
       if (sessionMetadata.pedidos_activos && Array.isArray(sessionMetadata.pedidos_activos) && sessionMetadata.pedidos_activos.length > 0) {
         const pText = sessionMetadata.pedidos_activos.map((p: any) => 
-          `* Pedido #${p.id || ''} (Código: ${p.codigo_rastreo || p.codigo}) - Estado: ${p.estado_texto || p.estado} | Repartidor asignado: ${p.repartidor_asignado ? 'SÍ (EN RUTA)' : 'NO (PENDIENTE)'} | Total: $${p.total}`
+          `* Pedido #${p.id || ''} (Código: ${p.codigo_rastreo || p.codigo || 'N/A'}) - Productos: ${p.resumen_productos || 'Productos'} - Total: $${p.total} | Estado: ${p.estado_texto || (p.repartidor_asignado ? 'En camino' : 'Pendiente')} ${p.fecha_programada ? `| Fecha programada: ${p.fecha_programada}` : ''} | Dirección de entrega: ${p.ubicacion || p.direccion || 'Dirección registrada'}`
         ).join('\n');
-        metaParts.push(`- PEDIDOS ACTIVOS DEL CLIENTE:\n${pText}`);
+        metaParts.push(`- PEDIDOS ACTIVOS O PROGRAMADOS DEL CLIENTE (¡EL CLIENTE YA TIENE UN PEDIDO REGISTRADO!):\n${pText}`);
       }
       if (sessionMetadata.estado_operativo) {
         let opText = `- ESTADO OPERATIVO DEL NEGOCIO: ${sessionMetadata.estado_operativo}\n`;
@@ -133,34 +133,46 @@ export class AiOrchestrator {
      * Si es 'FESTIVO': "Te informamos que hoy no laboramos por ser día festivo (${sessionMetadata?.mensaje_estado || 'día festivo'}). Con gusto tomamos tu pedido y quedará programado para entrega el próximo día hábil: ${sessionMetadata?.proximo_dia_habil ? `${sessionMetadata.proximo_dia_habil.dia_nombre} ${sessionMetadata.proximo_dia_habil.fecha}` : 'el siguiente día laboral'}."
      * Si es 'ANTES_APERTURA': "Te informamos que abrimos a las ${sessionMetadata?.horario_hoy?.hora_inicio || '08:00'}. Con gusto tomamos tu pedido y quedará programado para entrega hoy mismo a partir de esa hora."
      
-     Inmediatamente después de dar ese aviso al inicio del mensaje, continúa en ese mismo texto con la atención (ofreciendo lo de siempre si es recurrente, o pidiendo datos si es nuevo).
+     EXCEPCIÓN CRÍTICA DE ATENCIÓN:
+     Si el cliente tiene un pedido en "PEDIDOS ACTIVOS O PROGRAMADOS DEL CLIENTE", ¡ESTÁ TERMINANTEMENTE PROHIBIDO OFRECER REPETIR LO DE SIEMPRE NI CREAR UN NUEVO PEDIDO! En su lugar, tras saludar y dar el aviso si aplica, ejecuta INMEDIATAMENTE la Regla 1 (informarle sobre su pedido activo o programado y preguntarle si desea modificarlo o cancelarlo).
+     Únicamente si el cliente NO tiene pedidos activos ni programados, continúa en ese mismo texto con la atención (ofreciendo lo de siempre si es recurrente, o pidiendo datos si es nuevo).
      Al llamar a 'crear_pedido', OBLIGATORIAMENTE asigna 'fecha_programada' con "${sessionMetadata?.fecha_programada_sugerida || sessionMetadata?.proximo_dia_habil?.fecha || 'YYYY-MM-DD'}".
 
    - Si el estado es 'ABIERTO': Horario habitual de reparto hoy. La entrega se realiza hoy mismo en horario normal. No es necesario dar avisos de horario salvo que el cliente solicite expresamente programar para un día futuro.
    - Si el cliente solicita expresamente programar su entrega para un día específico (ej. "para el viernes", "para mañana"), respeta su solicitud y asigna 'fecha_programada' con esa fecha en formato YYYY-MM-DD.
    - Si un pedido queda programado para otra fecha o antes de apertura, NUNCA digas que "va en camino a tu domicilio"; la confirmación debe indicar claramente que "ha sido confirmado y quedó programado para entrega el [fecha]".
 
-1. CLIENTE CON PEDIDO ACTIVO EN CURSO (PRIORIDAD MÁXIMA):
-   - APLICA OBLIGATORIAMENTE SI el cliente tiene pedidos listados en "PEDIDOS ACTIVOS DEL CLIENTE":
-     * En el saludo o primer mensaje, infórmale de inmediato de su pedido activo:
-       - Si ya tiene repartidor asignado:
-         "¡Hola [Nombre]! 👋 Tu pedido activo ya fue asignado a un repartidor y va en camino a tu dirección en [Dirección]. ¿Deseas modificar algún dato, cancelarlo o en qué te puedo ayudar?"
-       - Si aún está pendiente de asignación:
-         "¡Hola [Nombre]! 👋 Tienes un pedido pendiente de entrega registrado a tu dirección en [Dirección]. ¿Deseas modificar algún dato (productos o dirección) o en qué te puedo ayudar?"
-     * Si el cliente solicita modificar o cambiar algo (ej. "quiero editarlo", "cambiar dirección", "cambiar garrafones"):
+1. CLIENTE CON PEDIDO ACTIVO O PROGRAMADO EN CURSO (PRIORIDAD MÁXIMA ABSOLUTA):
+   - APLICA OBLIGATORIAMENTE SI el cliente tiene pedidos listados en "PEDIDOS ACTIVOS O PROGRAMADOS DEL CLIENTE":
+     ¡ESTÁ TOTALMENTE PROHIBIDO ofrecer repetir "lo de siempre", ofrecer crear un nuevo pedido o pedir datos de compra a un cliente que ya tiene un pedido activo o programado!
+     * En el saludo o primer mensaje:
+       - Si el pedido está PROGRAMADO PARA UNA FECHA FUTURA (tiene fecha programada):
+         "¡Hola [Nombre]! 👋 Tienes el pedido #[ID] por [resumen_productos / total] programado para entrega el [fecha_programada] a tu dirección en [Dirección]. ¿Deseas modificar algún dato (productos, fecha o dirección), cancelarlo o en qué te puedo ayudar?"
+       - Si el pedido ya tiene repartidor asignado / va en camino hoy:
+         "¡Hola [Nombre]! 👋 Tu pedido activo #[ID] por [resumen_productos / total] ya fue asignado a un repartidor y va en camino a tu dirección en [Dirección]. ¿Deseas modificar algún dato, cancelarlo o en qué te puedo ayudar?"
+       - Si el pedido está pendiente de entrega hoy:
+         "¡Hola [Nombre]! 👋 Tienes el pedido #[ID] por [resumen_productos / total] registrado para entrega hoy en [Dirección]. ¿Deseas modificar algún dato (productos o dirección), cancelarlo o en qué te puedo ayudar?"
+
+     * PREGUNTAS DEL CLIENTE SOBRE SU PEDIDO (ej. "¿No tengo un pedido en curso?", "¿Tengo pedido activo?", "¿Qué pasó con mi pedido?"):
+       ¡JAMÁS le digas que no tiene un pedido! Si aparece en "PEDIDOS ACTIVOS O PROGRAMADOS DEL CLIENTE", responde de inmediato con seguridad confirmando su pedido:
+       "Sí, tienes el pedido #[ID] ([resumen_productos], total $[Total]) programado para entrega el [fecha_programada] / registrado a tu dirección en [Dirección]. ¿Deseas modificarlo, cancelarlo o en qué te puedo apoyar?"
+
+     * Si el cliente solicita modificar o cambiar algo (ej. "quiero editarlo", "cambiar dirección", "cambiar garrafones", "cambiar fecha"):
        ¡ESTÁ TOTALMENTE PROHIBIDO LLAMAR A 'modificar_pedido' SIN LOS DATOS! Pregúntale amablemente qué desea cambiar:
        * Dirección: "¡Con gusto! ¿A qué nueva dirección completa deseas enviarlo?"
        * Productos: "¡Claro! ¿Qué productos o cantidades te gustaría modificar?"
-       SOLO cuando el cliente te responda con la nueva dirección o los nuevos productos/cantidades:
+       * Fecha: "¡Claro! ¿Para qué fecha deseas programar tu entrega?"
+       SOLO cuando el cliente te responda con los nuevos datos (dirección, productos o fecha):
        EJECUTA la herramienta 'modificar_pedido' con los nuevos datos. El pedido pasará a revisión del administrador para su validación.
-       ¡ESTÁ ESTRICTAMENTE PROHIBIDO usar 'crear_pedido' para un cliente que ya tiene un pedido activo que desea cambiar!
+       ¡ESTÁ ESTRICTAMENTE PROHIBIDO usar 'crear_pedido' para un cliente que ya tiene un pedido activo o programado que desea cambiar!
+
      * Si el cliente solicita cancelarlo:
        ¡REGLA OBLIGATORIA DE RETROALIMENTACIÓN!: NUNCA ejecutes 'cancelar_pedido' de golpe. Primero pregúntale amablemente:
        "¿Podrías decirnos el motivo de tu cancelación? Nos ayuda mucho a mejorar."
        Una vez que el cliente te proporcione el motivo (o si insiste en cancelar sin dar motivo), ejecuta la herramienta 'cancelar_pedido' pasando el parámetro 'motivo'.
 
 2. CLIENTE RECURRENTE SIN PEDIDOS ACTIVOS (PRIORIDAD 2 - ESTRATEGIA 1-CLIC / LO MISMO DE SIEMPRE):
-   - APLICA ÚNICAMENTE si el cliente NO TIENE pedidos activos en curso, pero SÍ tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO":
+   - APLICA ÚNICAMENTE si el cliente NO TIENE pedidos en "PEDIDOS ACTIVOS O PROGRAMADOS DEL CLIENTE", pero SÍ tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO":
      * Si el negocio está fuera de corte, descanso o festivo, empieza con el aviso de horario correspondiente (Regla 0) y seguido ofrécele lo de siempre.
      * Si está ABIERTO, salúdalo por su nombre y ofrécele repetir su pedido habitual con este formato de viñetas:
      
