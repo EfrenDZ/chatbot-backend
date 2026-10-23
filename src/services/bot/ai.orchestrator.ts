@@ -77,11 +77,11 @@ export class AiOrchestrator {
             const price = parseFloat(d.precio || 0);
             const subtotal = price * qty;
             const subtotalStr = Number.isInteger(subtotal) ? subtotal.toString() : subtotal.toFixed(2);
-            return `    ${qty}x ${d.nombre_producto || d.producto_nombre || 'Producto'} - $${subtotalStr}`;
+            return `• ${qty}x ${d.nombre_producto || d.producto_nombre || 'Producto'} - $${subtotalStr}`;
           }).join('\n');
           if (up.detalles.length > 1 && up.total) {
             const tot = parseFloat(up.total);
-            resumen += `\n    Total: $${Number.isInteger(tot) ? tot.toString() : tot.toFixed(2)}`;
+            resumen += `\n• Total: $${Number.isInteger(tot) ? tot.toString() : tot.toFixed(2)}`;
           }
         } else if (up.resumen_texto) {
           resumen = up.resumen_texto;
@@ -189,7 +189,7 @@ export class AiOrchestrator {
 2. CLIENTE RECURRENTE SIN PEDIDOS ACTIVOS (PRIORIDAD 2 - ESTRATEGIA 1-CLIC / LO MISMO DE SIEMPRE):
    - APLICA ÚNICAMENTE si el cliente NO TIENE pedidos en "PEDIDOS ACTIVOS O PROGRAMADOS DEL CLIENTE", pero SÍ tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO":
      
-     * ESTRUCTURA EXACTA DEL MENSAJE (OBLIGATORIA - RESPETA EXACTAMENTE ESTOS PÁRRAFOS Y FORMATO DE VIÑETA CON PRECIO):
+     * ESTRUCTURA EXACTA DEL MENSAJE (OBLIGATORIA - CADA PRODUCTO EN SU PROPIA VIÑETA CON PRECIO TOTAL):
        1. Párrafo 1 (SOLO SI EL NEGOCIO NO ESTÁ 'ABIERTO', ej. 'ANTES_APERTURA', 'DESPUES_CIERRE', 'CERRADO' o 'FESTIVO'):
           Escribe OBLIGATORIAMENTE en el primer párrafo el aviso de horario de la Regla 0:
           "¡Te informamos que abrimos a las ${sessionMetadata?.horario_hoy?.hora_inicio || '08:00'}. Con gusto tomamos tu pedido y quedará programado para entrega hoy mismo a partir de esa hora!"
@@ -197,27 +197,32 @@ export class AiOrchestrator {
        2. Párrafo 2 (Saludo y propuesta):
           "¡Hola [Nombre]! 👋 ¿Te mandamos lo mismo de siempre?"
        
-       3. Párrafo 3 (Viñeta con cantidad, producto, precio total y dirección):
-          "    4x Garrafon normal - $96"
-          "    a tu dirección en [Dirección]? 😊"
+       3. Párrafo 3 (CADA PRODUCTO OBLIGATORIAMENTE EN SU VIÑETA CON '•' o '-', CON CANTIDAD, NOMBRE Y PRECIO TOTAL):
+          • 4x Garrafon normal - $96
+          a tu dirección en [Dirección]? 😊
+          (Si son varios productos habituales, CADA UNO debe ir en su propia viñeta, ej:
+          • 4x Garrafon normal - $96
+          • 2x Ciel - $48
+          a tu dirección en [Dirección]? 😊)
 
      EJEMPLO EXACTO CUANDO ES ANTES DE ABRIR (ANTES_APERTURA):
      ¡Te informamos que abrimos a las 08:00. Con gusto tomamos tu pedido y quedará programado para entrega hoy mismo a partir de esa hora!
 
      ¡Hola Jesús! 👋 ¿Te mandamos lo mismo de siempre?
 
-         4x Garrafon normal - $96
-         a tu dirección en Adolfo de la Huerta 154? 😊
+     • 4x Garrafon normal - $96
+     a tu dirección en Adolfo de la Huerta 154? 😊
 
      EJEMPLO EXACTO CUANDO EL NEGOCIO YA ESTÁ ABIERTO:
      ¡Hola Jesús! 👋 ¿Te mandamos lo mismo de siempre?
 
-         4x Garrafon normal - $96
-         a tu dirección en Adolfo de la Huerta 154? 😊
+     • 4x Garrafon normal - $96
+     a tu dirección en Adolfo de la Huerta 154? 😊
 
-     REGLA ESTRICTA DE PRECIO Y VIÑETA:
-     - SIEMPRE debes incluir la viñeta con la cantidad, el producto y el precio total: "    4x Garrafon normal - $96".
-     - ¡ESTÁ ESTRICTAMENTE PROHIBIDO omitir el precio o usar formatos como "Garrafon normal (x2)"! Debe ir con el formato: "    [Cantidad]x [Producto] - $[PrecioTotal]".
+     REGLA ESTRICTA DE PRECIO Y VIÑETAS:
+     - CADA PRODUCTO DEBE IR OBLIGATORIAMENTE EN SU PROPIA VIÑETA con el símbolo '•' o '-': "• [Cantidad]x [Producto] - $[PrecioTotal]".
+     - SIEMPRE incluye el precio total al final de cada viñeta.
+     - ¡ESTÁ ESTRICTAMENTE PROHIBIDO omitir las viñetas, omitir el precio o usar formatos como "Garrafon normal (x2)"!
      - ¡ESTÁ ESTRICTAMENTE PROHIBIDO enviar el catálogo de productos a clientes recurrentes que tienen pedido habitual! El cliente debe poder confirmar su pedido con 1 sola palabra ("Sí", "Por favor", "Lo de siempre").
    - Si el cliente responde afirmativamente confirmando todo ("Sí", "Por favor", "Simón", "Mándalo", "Lo de siempre", "Ok"):
      ¡EJECUTA INMEDIATAMENTE la herramienta 'crear_pedido' con esos productos y dirección habitual!
