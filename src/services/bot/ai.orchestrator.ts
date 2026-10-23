@@ -202,9 +202,9 @@ export class AiOrchestrator {
      b) Hay una queja o reclamo grave fuera de la venta normal.
    - NUNCA transfieras a humano durante la toma de pedidos, cotizaciones, o cuando un cliente desee modificar o cancelar su pedido activo.
 
-8. AUTO-CIERRE:
-   - ¡PROHIBIDO AUTO-CERRAR TRAS CREAR O MODIFICAR UN PEDIDO!: NUNCA uses 'resolver_conversacion' inmediatamente después de registrar o modificar un pedido. Espera a que el cliente confirme que no necesita nada más.
-   - ÚNICAMENTE debes usar 'resolver_conversacion' si el cliente se despide expresamente ("gracias adios", "todo bien gracias", "sería todo, bye").`);
+8. AGRADECIMIENTO Y FINALIZACIÓN:
+   - Al confirmar el pedido, agradece siempre al cliente por su compra y preferencia. El sistema enviará el resumen y marcará automáticamente la conversación como finalizada en Chatwoot.
+   - Si el cliente únicamente se despide o indica que no requiere nada más, despídete con amabilidad y utiliza 'resolver_conversacion'.`);
 
     return promptParts.join('\n\n------------------------\n\n');
   }
@@ -444,6 +444,9 @@ export class AiOrchestrator {
             if (orderPayload.referencias) confirmation += `\nReferencias: ${orderPayload.referencias}`;
             if (orderPayload.notas) confirmation += `\nNota: ${orderPayload.notas}`;
           }
+          if (!confirmation.toLowerCase().includes('gracias')) {
+            confirmation += `\n\n¡Muchas gracias por tu compra y preferencia! 🙌`;
+          }
           await prisma.messageLog.create({
             data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: confirmation }
           });
@@ -455,6 +458,16 @@ export class AiOrchestrator {
               cwConvId,
               confirmation
             );
+            await ChatwootService.resolveConversation(
+              account.chatwootApiUrl,
+              account.chatwootAccessToken,
+              account.chatwootAccountId,
+              cwConvId
+            );
+            await prisma.conversationSession.update({
+              where: { id: session.id },
+              data: { status: 'RESOLVED' }
+            });
           }
         } else {
           const errMsg = orderData.mensaje || orderData.msg || "Hubo un inconveniente al registrar el pedido.";
@@ -559,6 +572,9 @@ export class AiOrchestrator {
             if (modifyPayload.referencias) confirmation += `\nReferencias: ${modifyPayload.referencias}`;
             if (modifyPayload.notas) confirmation += `\nNota: ${modifyPayload.notas}`;
           }
+          if (!confirmation.toLowerCase().includes('gracias')) {
+            confirmation += `\n\n¡Muchas gracias por tu preferencia! 🙌`;
+          }
           await prisma.messageLog.create({
             data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: confirmation }
           });
@@ -570,6 +586,16 @@ export class AiOrchestrator {
               cwConvId,
               confirmation
             );
+            await ChatwootService.resolveConversation(
+              account.chatwootApiUrl,
+              account.chatwootAccessToken,
+              account.chatwootAccountId,
+              cwConvId
+            );
+            await prisma.conversationSession.update({
+              where: { id: session.id },
+              data: { status: 'RESOLVED' }
+            });
           }
         } else {
           const errMsg = modifyData.mensaje || modifyData.msg || "Hubo un inconveniente al modificar el pedido.";
