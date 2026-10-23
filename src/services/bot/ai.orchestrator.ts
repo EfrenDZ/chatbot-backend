@@ -212,6 +212,9 @@ export class AiOrchestrator {
 
 5. REGLAS ESTRICTAS DE FORMATO Y LIMPIEZA:
    - DIRECCIONES LIMPIAS: NUNCA coloques aclaraciones, comentarios, notas ni textos entre paréntesis en 'direccion' ni en tus mensajes (ej. NUNCA pongas "(Referencia proporcionada por el cliente)", "(Ubicación habitual)"). Coloca ÚNICAMENTE la calle, número y datos limpios.
+   - RESUMEN Y MENSAJES LIMPIOS SIN NOTAS NI REFERENCIAS VACÍAS:
+     Si el cliente no dejó notas para el chofer, NUNCA escribas "Nota: ninguna", "Nota: sin notas", "Nota: no" ni menciones la palabra "Nota" en tus mensajes o en el resumen. Si el cliente no dio referencias, NUNCA escribas "Referencias: ninguna" ni menciones "Referencias". Solo incluye Notas o Referencias cuando el cliente las haya proporcionado explícitamente.
+   - En las herramientas 'crear_pedido' y 'modificar_pedido', si el cliente no especificó referencias o notas, o dijo "no" / "ninguna", déjalos completamente vacíos (sin valor), NUNCA envíes textos como "sin notas", "ninguna", "n/a".
    - CÓDIGOS DE RASTREO: NUNCA menciones códigos de rastreo (como AC...) en los mensajes al cliente. La confirmación debe ser directa, breve y limpia.
 
 6. CANCELACIÓN DE PEDIDOS:
@@ -444,12 +447,18 @@ export class AiOrchestrator {
         || metadata.fecha_programada_sugerida
         || undefined;
 
+      const cleanRef = AiOrchestrator.sanitizeAddress(rawRef);
+      const isRefEmpty = !cleanRef || /^(ninguna|sin referencias?|n\/a|no)$/i.test(cleanRef.trim());
+
+      const cleanNotas = aiResult.orderData?.notas_generales?.trim();
+      const isNotasEmpty = !cleanNotas || /^(ninguna|sin notas?|n\/a|no|as[ií] est[aá] bien|pedido v[ií]a whatsapp bot)$/i.test(cleanNotas);
+
       const orderPayload = {
         telefono: session.contactIdentifier,
         nombre: rawNombre || 'Cliente WhatsApp',
         direccion: AiOrchestrator.sanitizeAddress(rawDir),
-        referencias: AiOrchestrator.sanitizeAddress(rawRef),
-        notas: aiResult.orderData?.notas_generales,
+        referencias: isRefEmpty ? undefined : cleanRef,
+        notas: isNotasEmpty ? undefined : cleanNotas,
         fecha_programada: scheduledDate,
         detalle
       };
@@ -571,12 +580,18 @@ export class AiOrchestrator {
         } catch (e) {}
       }
 
+      const cleanModRef = AiOrchestrator.sanitizeAddress(aiResult.modifyData?.referencias);
+      const isModRefEmpty = !cleanModRef || /^(ninguna|sin referencias?|n\/a|no)$/i.test(cleanModRef.trim());
+
+      const cleanModNotas = aiResult.modifyData?.notas_generales?.trim();
+      const isModNotasEmpty = !cleanModNotas || /^(ninguna|sin notas?|n\/a|no|as[ií] est[aá] bien)$/i.test(cleanModNotas);
+
       const modifyPayload = {
         telefono: session.contactIdentifier,
         codigo: aiResult.modifyData?.codigo_pedido || targetOrder?.codigo_rastreo,
         direccion: AiOrchestrator.sanitizeAddress(aiResult.modifyData?.direccion),
-        referencias: AiOrchestrator.sanitizeAddress(aiResult.modifyData?.referencias),
-        notas: aiResult.modifyData?.notas_generales,
+        referencias: isModRefEmpty ? undefined : cleanModRef,
+        notas: isModNotasEmpty ? undefined : cleanModNotas,
         fecha_programada: aiResult.modifyData?.fecha_programada || undefined,
         detalle
       };
