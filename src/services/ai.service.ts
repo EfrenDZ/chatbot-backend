@@ -72,7 +72,8 @@ export class AiService {
             })).min(1).describe('Lista de productos o servicios solicitados'),
             direccion: z.string().optional().describe('Dirección de entrega limpia (calle y número). NUNCA agregues aclaraciones, notas ni textos entre paréntesis como "(referencia del cliente)"'),
             referencias: z.string().optional().describe('Referencias de ubicación (ej. color de fachada, entrecalles). NUNCA agregues textos entre paréntesis'),
-            notas_generales: z.string().optional().describe('Instrucciones adicionales para la entrega')
+            notas_generales: z.string().optional().describe('Instrucciones adicionales para la entrega'),
+            fecha_programada: z.string().optional().describe('Fecha en formato YYYY-MM-DD para la cual se programa la entrega si está fuera de horario, día de descanso, día festivo o por solicitud del cliente')
           }),
         },
         modificar_pedido: {
@@ -86,7 +87,8 @@ export class AiService {
             })).optional().describe('Nuevos productos o cantidades del pedido si cambiaron'),
             direccion: z.string().optional().describe('Nueva dirección de entrega limpia si cambió. NUNCA agregues textos entre paréntesis'),
             referencias: z.string().optional().describe('Nuevas referencias de ubicación'),
-            notas_generales: z.string().optional().describe('Nuevas instrucciones o notas adicionales para la entrega si cambiaron')
+            notas_generales: z.string().optional().describe('Nuevas instrucciones o notas adicionales para la entrega si cambiaron'),
+            fecha_programada: z.string().optional().describe('Nueva fecha de entrega en formato YYYY-MM-DD si se reprograma el pedido')
           }),
         },
         cancelar_pedido: {

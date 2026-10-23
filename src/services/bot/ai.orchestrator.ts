@@ -81,8 +81,33 @@ export class AiOrchestrator {
         ).join('\n');
         metaParts.push(`- PEDIDOS ACTIVOS DEL CLIENTE:\n${pText}`);
       }
-      if (sessionMetadata.fuera_de_horario) {
+      if (sessionMetadata.estado_operativo) {
+        let opText = `- ESTADO OPERATIVO DEL NEGOCIO: ${sessionMetadata.estado_operativo}\n`;
+        opText += `  * Día y hora actual: ${sessionMetadata.dia_actual || ''} ${sessionMetadata.fecha_actual || ''} (${sessionMetadata.hora_actual || ''})\n`;
+        if (sessionMetadata.horario_hoy) {
+          opText += `  * Horario de hoy (${sessionMetadata.dia_actual}): ${sessionMetadata.horario_hoy.laborable ? `Apertura ${sessionMetadata.horario_hoy.hora_inicio} - Corte pedidos ${sessionMetadata.horario_hoy.hora_corte}` : 'Día de descanso (no laborable)'}\n`;
+        }
+        if (sessionMetadata.mensaje_estado) {
+          opText += `  * Mensaje del estado: "${sessionMetadata.mensaje_estado}"\n`;
+        }
+        if (sessionMetadata.instruccion_horario) {
+          opText += `  * Instrucción de atención: ${sessionMetadata.instruccion_horario}\n`;
+        }
+        if (sessionMetadata.proximo_dia_habil) {
+          opText += `  * Próximo día hábil de entrega: ${sessionMetadata.proximo_dia_habil.dia_nombre} ${sessionMetadata.proximo_dia_habil.fecha} (Apertura ${sessionMetadata.proximo_dia_habil.hora_inicio})\n`;
+        }
+        if (sessionMetadata.fecha_programada_sugerida) {
+          opText += `  * Fecha programada sugerida: ${sessionMetadata.fecha_programada_sugerida}\n`;
+        }
+        if (sessionMetadata.aviso_proximo_festivo) {
+          opText += `  * AVISO PRÓXIMO FESTIVO: ${sessionMetadata.aviso_proximo_festivo.mensaje}\n`;
+        }
+        metaParts.push(opText.trim());
+      } else if (sessionMetadata.fuera_de_horario) {
         metaParts.push(`- AVISO DE HORARIO: Actualmente estamos cerrados. Próximo día hábil: ${sessionMetadata.mensaje_horario || 'el siguiente día laboral'}. Si el cliente pide productos, aclárale que su entrega se agendará para ese horario.`);
+      }
+      if (sessionMetadata.ultimo_repartidor) {
+        metaParts.push(`- CHOFER HABITUAL DEL CLIENTE: ${sessionMetadata.ultimo_repartidor.nombre} (ID: ${sessionMetadata.ultimo_repartidor.id})`);
       }
       if (metaParts.length > 0) {
         promptParts.push(`INFORMACIÓN Y CONTEXTO DEL CLIENTE ACTUAL:\n${metaParts.join('\n')}`);
@@ -98,6 +123,15 @@ export class AiOrchestrator {
     promptParts.push(`FECHA Y HORA ACTUAL:\nLa fecha y hora actual es: ${timeString}.`);
 
     promptParts.push(`INSTRUCCIONES DE ATENCIÓN Y TOMA DE PEDIDOS (EFICIENCIA MÁXIMA EN MENSAJES - PROTOCOLO RÁPIDO):
+0. HORARIOS DE OPERACIÓN Y PROGRAMACIÓN DE ENTREGAS (CRÍTICO):
+   - Revisa el "ESTADO OPERATIVO DEL NEGOCIO":
+     * 'DESPUES_CIERRE': Ya concluyó el horario de corte de pedidos de hoy. Avísale al cliente que con gusto tomamos su pedido y que quedará programado para entrega el próximo día hábil (${sessionMetadata?.proximo_dia_habil ? `${sessionMetadata.proximo_dia_habil.dia_nombre} ${sessionMetadata.proximo_dia_habil.fecha} a partir de las ${sessionMetadata.proximo_dia_habil.hora_inicio}` : 'mañana'}). Al crear el pedido, OBLIGATORIAMENTE asigna 'fecha_programada' con "${sessionMetadata?.fecha_programada_sugerida || sessionMetadata?.proximo_dia_habil?.fecha || 'YYYY-MM-DD'}".
+     * 'CERRADO' (Día de descanso): Hoy no laboramos por descanso semanal. Avísale al cliente que con gusto tomamos su pedido y quedará programado para el próximo día hábil (${sessionMetadata?.proximo_dia_habil ? `${sessionMetadata.proximo_dia_habil.dia_nombre} ${sessionMetadata.proximo_dia_habil.fecha}` : 'el siguiente día laboral'}). Asigna 'fecha_programada' con esa fecha.
+     * 'FESTIVO': Hoy no laboramos por día festivo. Avísale al cliente el motivo/mensaje y que su pedido quedará programado para entrega el próximo día hábil (${sessionMetadata?.proximo_dia_habil ? `${sessionMetadata.proximo_dia_habil.dia_nombre} ${sessionMetadata.proximo_dia_habil.fecha}` : 'el siguiente día laboral'}). Asigna 'fecha_programada' con esa fecha.
+     * 'ANTES_APERTURA': Aún no abre el establecimiento (abrimos a las ${sessionMetadata?.horario_hoy?.hora_inicio || 'su horario de apertura'}). Avísale que tomamos su pedido y quedará agendado para entrega hoy mismo a partir de esa hora. Asigna 'fecha_programada' con "${sessionMetadata?.fecha_actual || 'hoy'}".
+     * 'ABIERTO': Horario habitual de entrega hoy. La entrega se realiza hoy mismo en horario habitual. No incluyas 'fecha_programada' a menos que el cliente te solicite expresamente agendar para un día futuro.
+   - Si el cliente solicita expresamente programar su entrega para un día específico (ej. "para el viernes", "para mañana"), respeta su solicitud y asigna 'fecha_programada' con esa fecha en formato YYYY-MM-DD.
+   - Si un pedido queda programado para otra fecha o antes de apertura, NUNCA digas que "va en camino a tu domicilio"; aclara siempre que "ha sido confirmado y quedó programado para entrega el [fecha]".
 1. CLIENTE CON PEDIDO ACTIVO EN CURSO (PRIORIDAD MÁXIMA):
    - APLICA OBLIGATORIAMENTE SI el cliente tiene pedidos listados en "PEDIDOS ACTIVOS DEL CLIENTE":
      * En el saludo o primer mensaje, infórmale de inmediato de su pedido activo:
@@ -419,12 +453,17 @@ export class AiOrchestrator {
           : undefined;
       }
 
+      const scheduledDate = aiResult.orderData?.fecha_programada
+        || metadata.fecha_programada_sugerida
+        || undefined;
+
       const orderPayload = {
         telefono: session.contactIdentifier,
         nombre: rawNombre || 'Cliente WhatsApp',
         direccion: AiOrchestrator.sanitizeAddress(rawDir),
         referencias: AiOrchestrator.sanitizeAddress(rawRef),
         notas: aiResult.orderData?.notas_generales,
+        fecha_programada: scheduledDate,
         detalle
       };
 
@@ -440,7 +479,11 @@ export class AiOrchestrator {
           if (!confirmation || (!confirmation.includes('Resumen') && !confirmation.includes('Total:'))) {
             const itemsSummary = (detalle || []).map((it: any) => `- ${it.cantidad}x ${it.nombre_producto}`).join('\n');
             const totalCalc = (detalle || []).reduce((acc: number, it: any) => acc + (parseFloat(it.precio || 0) * parseInt(it.cantidad || 1)), 0);
-            confirmation = `¡Listo! Tu pedido ha sido confirmado exitosamente y va en camino a tu domicilio.\n\nResumen de tu pedido:\n${itemsSummary}\nTotal: $${totalCalc.toFixed(2)}\nDirección: ${orderPayload.direccion || 'Domicilio registrado'}`;
+            if (scheduledDate) {
+              confirmation = `¡Listo! Tu pedido ha sido confirmado y quedó programado para entrega el ${scheduledDate}.\n\nResumen de tu pedido:\n${itemsSummary}\nTotal: $${totalCalc.toFixed(2)}\nDirección: ${orderPayload.direccion || 'Domicilio registrado'}`;
+            } else {
+              confirmation = `¡Listo! Tu pedido ha sido confirmado exitosamente y va en camino a tu domicilio.\n\nResumen de tu pedido:\n${itemsSummary}\nTotal: $${totalCalc.toFixed(2)}\nDirección: ${orderPayload.direccion || 'Domicilio registrado'}`;
+            }
             if (orderPayload.referencias) confirmation += `\nReferencias: ${orderPayload.referencias}`;
             if (orderPayload.notas) confirmation += `\nNota: ${orderPayload.notas}`;
           }
@@ -547,6 +590,7 @@ export class AiOrchestrator {
         direccion: AiOrchestrator.sanitizeAddress(aiResult.modifyData?.direccion),
         referencias: AiOrchestrator.sanitizeAddress(aiResult.modifyData?.referencias),
         notas: aiResult.modifyData?.notas_generales,
+        fecha_programada: aiResult.modifyData?.fecha_programada || undefined,
         detalle
       };
 
