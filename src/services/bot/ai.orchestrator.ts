@@ -418,7 +418,12 @@ export class AiOrchestrator {
         });
         const orderData = await orderRes.json();
         if (orderRes.ok && orderData.status === 'success') {
-          const confirmation = orderData.mensaje || '¡Listo! Tu pedido ha sido confirmado.';
+          let confirmation = orderData.mensaje;
+          if (!confirmation || (!confirmation.includes('Resumen') && !confirmation.includes('Total:'))) {
+            const itemsSummary = (detalle || []).map((it: any) => `- ${it.cantidad}x ${it.nombre_producto}`).join('\n');
+            const totalCalc = (detalle || []).reduce((acc: number, it: any) => acc + (parseFloat(it.precio || 0) * parseInt(it.cantidad || 1)), 0);
+            confirmation = `¡Listo! Tu pedido ha sido confirmado exitosamente y va en camino a tu domicilio.\n\nResumen de tu pedido:\n${itemsSummary}\nTotal: $${totalCalc.toFixed(2)}\nDirección: ${orderPayload.direccion || 'Domicilio registrado'}`;
+          }
           await prisma.messageLog.create({
             data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: confirmation }
           });
@@ -519,7 +524,18 @@ export class AiOrchestrator {
         });
         const modifyData = await modifyRes.json();
         if (modifyRes.ok && modifyData.status === 'success') {
-          const confirmation = modifyData.mensaje || '¡Listo! Tu pedido ha sido modificado exitosamente.';
+          let confirmation = modifyData.mensaje;
+          if (!confirmation || (!confirmation.includes('Resumen') && !confirmation.includes('Total:'))) {
+            if (detalle && detalle.length > 0) {
+              const itemsSummary = detalle.map((it: any) => `- ${it.cantidad}x ${it.nombre_producto}`).join('\n');
+              const totalCalc = detalle.reduce((acc: number, it: any) => acc + (parseFloat(it.precio || 0) * parseInt(it.cantidad || 1)), 0);
+              confirmation = `¡Listo! Tu pedido ha sido modificado exitosamente.\n\nResumen actualizado:\n${itemsSummary}\nTotal: $${totalCalc.toFixed(2)}\nDirección: ${modifyPayload.direccion || 'Domicilio registrado'}`;
+            } else if (modifyPayload.direccion) {
+              confirmation = `¡Listo! La dirección de tu pedido ha sido actualizada a: ${modifyPayload.direccion}.`;
+            } else {
+              confirmation = modifyData.mensaje || '¡Listo! Tu pedido ha sido modificado exitosamente.';
+            }
+          }
           await prisma.messageLog.create({
             data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: confirmation }
           });
