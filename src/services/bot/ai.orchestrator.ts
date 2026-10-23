@@ -70,9 +70,24 @@ export class AiOrchestrator {
       }
       if (sessionMetadata.ultimo_pedido) {
         const up = sessionMetadata.ultimo_pedido;
-        const resumen = up.resumen_texto || (up.detalles ? up.detalles.map((d: any) => `-${d.cantidad}x ${d.nombre_producto || d.producto_nombre}`).join('\n') : '');
-        if (resumen && resumen.trim().length > 0 && Number(up.total) > 0) {
-          metaParts.push(`- ÚLTIMO PEDIDO HABITUAL REGISTRADO:\n${resumen}`);
+        let resumen = '';
+        if (up.detalles && Array.isArray(up.detalles) && up.detalles.length > 0) {
+          resumen = up.detalles.map((d: any) => {
+            const qty = d.cantidad || 1;
+            const price = parseFloat(d.precio || 0);
+            const subtotal = price * qty;
+            const subtotalStr = Number.isInteger(subtotal) ? subtotal.toString() : subtotal.toFixed(2);
+            return `    ${qty}x ${d.nombre_producto || d.producto_nombre || 'Producto'} - $${subtotalStr}`;
+          }).join('\n');
+          if (up.detalles.length > 1 && up.total) {
+            const tot = parseFloat(up.total);
+            resumen += `\n    Total: $${Number.isInteger(tot) ? tot.toString() : tot.toFixed(2)}`;
+          }
+        } else if (up.resumen_texto) {
+          resumen = up.resumen_texto;
+        }
+        if (resumen && resumen.trim().length > 0) {
+          metaParts.push(`- ÚLTIMO PEDIDO HABITUAL REGISTRADO (OFRÉCELE ESTOS PRODUCTOS EXACTOS CON ESTE FORMATO EN VIÑETA Y CON SU PRECIO TOTAL):\n${resumen}`);
         }
       }
       if (sessionMetadata.pedidos_activos && Array.isArray(sessionMetadata.pedidos_activos) && sessionMetadata.pedidos_activos.length > 0) {
@@ -123,19 +138,19 @@ export class AiOrchestrator {
     promptParts.push(`FECHA Y HORA ACTUAL:\nLa fecha y hora actual es: ${timeString}.`);
 
     promptParts.push(`INSTRUCCIONES DE ATENCIÓN Y TOMA DE PEDIDOS (EFICIENCIA MÁXIMA EN MENSAJES - PROTOCOLO RÁPIDO):
-0. HORARIOS DE OPERACIÓN Y PROGRAMACIÓN DE ENTREGAS (CRÍTICO - DEBE SER LO PRIMERITO EN EL MENSAJE):
+0. HORARIOS DE OPERACIÓN Y PROGRAMACIÓN DE ENTREGAS (CRÍTICO - PRIMER PÁRRAFO DEL MENSAJE ANTES DEL SALUDO):
    - REGLA DE ORO DE COMUNICACIÓN INICIAL:
      Si el "ESTADO OPERATIVO DEL NEGOCIO" NO es 'ABIERTO' (es decir, es 'DESPUES_CIERRE', 'CERRADO', 'FESTIVO' o 'ANTES_APERTURA'):
-     ¡ESTA INFORMACIÓN DEBE SER LO PRIMERITO QUE DIGAS EN TU MENSAJE AL CLIENTE, JUSTO AL INICIO TRAS EL SALUDO!
-     NUNCA lo dejes para el final ni tomes el pedido sin haberlo avisado primero.
-     * Si es 'DESPUES_CIERRE': "Te informamos que por hoy ya concluyó nuestro horario de corte de recepción de pedidos (${sessionMetadata?.horario_hoy?.hora_corte || 'horario de corte'}). Con gusto tomamos tu pedido y quedará programado para entrega el próximo día hábil: ${sessionMetadata?.proximo_dia_habil ? `${sessionMetadata.proximo_dia_habil.dia_nombre} ${sessionMetadata.proximo_dia_habil.fecha} a partir de las ${sessionMetadata.proximo_dia_habil.hora_inicio}` : 'mañana'}."
-     * Si es 'CERRADO' (Día de descanso): "Te informamos que hoy ${sessionMetadata?.dia_actual || ''} es nuestro día de descanso y no laboramos. Con gusto tomamos tu pedido y quedará programado para entrega el próximo día hábil: ${sessionMetadata?.proximo_dia_habil ? `${sessionMetadata.proximo_dia_habil.dia_nombre} ${sessionMetadata.proximo_dia_habil.fecha} a partir de las ${sessionMetadata.proximo_dia_habil.hora_inicio}` : 'el siguiente día laboral'}."
-     * Si es 'FESTIVO': "Te informamos que hoy no laboramos por ser día festivo (${sessionMetadata?.mensaje_estado || 'día festivo'}). Con gusto tomamos tu pedido y quedará programado para entrega el próximo día hábil: ${sessionMetadata?.proximo_dia_habil ? `${sessionMetadata.proximo_dia_habil.dia_nombre} ${sessionMetadata.proximo_dia_habil.fecha}` : 'el siguiente día laboral'}."
-     * Si es 'ANTES_APERTURA': "Te informamos que abrimos a las ${sessionMetadata?.horario_hoy?.hora_inicio || '08:00'}. Con gusto tomamos tu pedido y quedará programado para entrega hoy mismo a partir de esa hora."
+     ¡ESTA INFORMACIÓN DEBE SER LO PRIMERITO QUE DIGAS EN TU MENSAJE AL CLIENTE, EN EL PRIMER PÁRRAFO, ANTES DE CUALQUIER SALUDO O PREGUNTA!
+     NUNCA lo dejes para después ni tomes el pedido sin haberlo avisado en el primer párrafo.
+     * Si es 'ANTES_APERTURA': "¡Te informamos que abrimos a las ${sessionMetadata?.horario_hoy?.hora_inicio || '08:00'}. Con gusto tomamos tu pedido y quedará programado para entrega hoy mismo a partir de esa hora!"
+     * Si es 'DESPUES_CIERRE': "¡Te informamos que por hoy ya concluyó nuestro horario de corte de recepción de pedidos (${sessionMetadata?.horario_hoy?.hora_corte || 'horario de corte'}). Con gusto tomamos tu pedido y quedará programado para entrega el próximo día hábil: ${sessionMetadata?.proximo_dia_habil ? `${sessionMetadata.proximo_dia_habil.dia_nombre} ${sessionMetadata.proximo_dia_habil.fecha} a partir de las ${sessionMetadata.proximo_dia_habil.hora_inicio}` : 'mañana'}!"
+     * Si es 'CERRADO' (Día de descanso): "¡Te informamos que hoy ${sessionMetadata?.dia_actual || ''} es nuestro día de descanso y no laboramos. Con gusto tomamos tu pedido y quedará programado para entrega el próximo día hábil: ${sessionMetadata?.proximo_dia_habil ? `${sessionMetadata.proximo_dia_habil.dia_nombre} ${sessionMetadata.proximo_dia_habil.fecha} a partir de las ${sessionMetadata.proximo_dia_habil.hora_inicio}` : 'el siguiente día laboral'}!"
+     * Si es 'FESTIVO': "¡Te informamos que hoy no laboramos por ser día festivo (${sessionMetadata?.mensaje_estado || 'día festivo'}). Con gusto tomamos tu pedido y quedará programado para entrega el próximo día hábil: ${sessionMetadata?.proximo_dia_habil ? `${sessionMetadata.proximo_dia_habil.dia_nombre} ${sessionMetadata.proximo_dia_habil.fecha}` : 'el siguiente día laboral'}!"
      
      EXCEPCIÓN CRÍTICA DE ATENCIÓN:
-     Si el cliente tiene un pedido en "PEDIDOS ACTIVOS O PROGRAMADOS DEL CLIENTE", ¡ESTÁ TERMINANTEMENTE PROHIBIDO OFRECER REPETIR LO DE SIEMPRE NI CREAR UN NUEVO PEDIDO! En su lugar, tras saludar y dar el aviso si aplica, ejecuta INMEDIATAMENTE la Regla 1 (informarle sobre su pedido activo o programado y preguntarle si desea modificarlo o cancelarlo).
-     Únicamente si el cliente NO tiene pedidos activos ni programados, continúa en ese mismo texto con la atención (ofreciendo lo de siempre si es recurrente, o pidiendo datos si es nuevo).
+     Si el cliente tiene un pedido en "PEDIDOS ACTIVOS O PROGRAMADOS DEL CLIENTE", ¡ESTÁ TERMINANTEMENTE PROHIBIDO OFRECER REPETIR LO DE SIEMPRE NI CREAR UN NUEVO PEDIDO! En su lugar, aplica INMEDIATAMENTE la Regla 1 (informarle sobre su pedido activo o programado y preguntarle si desea modificarlo o cancelarlo).
+     Únicamente si el cliente NO tiene pedidos activos ni programados, continúa en ese mismo texto con la atención (ofreciendo lo de siempre con el formato estricto de la Regla 2 si es recurrente, o pidiendo datos si es nuevo).
      Al llamar a 'crear_pedido', OBLIGATORIAMENTE asigna 'fecha_programada' con "${sessionMetadata?.fecha_programada_sugerida || sessionMetadata?.proximo_dia_habil?.fecha || 'YYYY-MM-DD'}".
 
    - Si el estado es 'ABIERTO': Horario habitual de reparto hoy. La entrega se realiza hoy mismo en horario normal. No es necesario dar avisos de horario salvo que el cliente solicite expresamente programar para un día futuro.
@@ -173,14 +188,37 @@ export class AiOrchestrator {
 
 2. CLIENTE RECURRENTE SIN PEDIDOS ACTIVOS (PRIORIDAD 2 - ESTRATEGIA 1-CLIC / LO MISMO DE SIEMPRE):
    - APLICA ÚNICAMENTE si el cliente NO TIENE pedidos en "PEDIDOS ACTIVOS O PROGRAMADOS DEL CLIENTE", pero SÍ tiene un "ÚLTIMO PEDIDO HABITUAL REGISTRADO":
-     * Si el negocio está fuera de corte, descanso o festivo, empieza con el aviso de horario correspondiente (Regla 0) y seguido ofrécele lo de siempre.
-     * Si está ABIERTO, salúdalo por su nombre y ofrécele repetir su pedido habitual con este formato de viñetas:
      
-     "¡Hola [Nombre]! 👋 ¿Te mandamos lo mismo de siempre? 
-     [Lista de productos del pedido habitual con viñetas]
-     a tu dirección en [Dirección]?"
+     * ESTRUCTURA EXACTA DEL MENSAJE (OBLIGATORIA - RESPETA EXACTAMENTE ESTOS PÁRRAFOS Y FORMATO DE VIÑETA CON PRECIO):
+       1. Párrafo 1 (SOLO SI EL NEGOCIO NO ESTÁ 'ABIERTO', ej. 'ANTES_APERTURA', 'DESPUES_CIERRE', 'CERRADO' o 'FESTIVO'):
+          Escribe OBLIGATORIAMENTE en el primer párrafo el aviso de horario de la Regla 0:
+          "¡Te informamos que abrimos a las ${sessionMetadata?.horario_hoy?.hora_inicio || '08:00'}. Con gusto tomamos tu pedido y quedará programado para entrega hoy mismo a partir de esa hora!"
+       
+       2. Párrafo 2 (Saludo y propuesta):
+          "¡Hola [Nombre]! 👋 ¿Te mandamos lo mismo de siempre?"
+       
+       3. Párrafo 3 (Viñeta con cantidad, producto, precio total y dirección):
+          "    4x Garrafon normal - $96"
+          "    a tu dirección en [Dirección]? 😊"
 
-     REGLA ESTRICTA: NO envíes el catálogo de productos a clientes que tienen pedido habitual. Solo ofréceles confirmar su pedido habitual para que confirmen en 1 mensaje ("Sí", "Por favor", "Lo de siempre").
+     EJEMPLO EXACTO CUANDO ES ANTES DE ABRIR (ANTES_APERTURA):
+     ¡Te informamos que abrimos a las 08:00. Con gusto tomamos tu pedido y quedará programado para entrega hoy mismo a partir de esa hora!
+
+     ¡Hola Jesús! 👋 ¿Te mandamos lo mismo de siempre?
+
+         4x Garrafon normal - $96
+         a tu dirección en Adolfo de la Huerta 154? 😊
+
+     EJEMPLO EXACTO CUANDO EL NEGOCIO YA ESTÁ ABIERTO:
+     ¡Hola Jesús! 👋 ¿Te mandamos lo mismo de siempre?
+
+         4x Garrafon normal - $96
+         a tu dirección en Adolfo de la Huerta 154? 😊
+
+     REGLA ESTRICTA DE PRECIO Y VIÑETA:
+     - SIEMPRE debes incluir la viñeta con la cantidad, el producto y el precio total: "    4x Garrafon normal - $96".
+     - ¡ESTÁ ESTRICTAMENTE PROHIBIDO omitir el precio o usar formatos como "Garrafon normal (x2)"! Debe ir con el formato: "    [Cantidad]x [Producto] - $[PrecioTotal]".
+     - ¡ESTÁ ESTRICTAMENTE PROHIBIDO enviar el catálogo de productos a clientes recurrentes que tienen pedido habitual! El cliente debe poder confirmar su pedido con 1 sola palabra ("Sí", "Por favor", "Lo de siempre").
    - Si el cliente responde afirmativamente confirmando todo ("Sí", "Por favor", "Simón", "Mándalo", "Lo de siempre", "Ok"):
      ¡EJECUTA INMEDIATAMENTE la herramienta 'crear_pedido' con esos productos y dirección habitual!
      ¡ESTÁ ESTRICTAMENTE PROHIBIDO PREGUNTAR POR NOTAS O REFERENCIAS! Las notas y referencias son 100% opcionales. El pedido debe quedar creado en esa única respuesta del cliente.
