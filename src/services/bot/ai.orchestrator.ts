@@ -148,7 +148,7 @@ export class AiOrchestrator {
 
     const now = new Date();
     const timeString = now.toLocaleString('es-ES', { 
-      timeZone: process.env.TZ || 'America/Mexico_City',
+      timeZone: process.env.TZ || 'America/Mazatlan',
       dateStyle: 'full', 
       timeStyle: 'long' 
     });
