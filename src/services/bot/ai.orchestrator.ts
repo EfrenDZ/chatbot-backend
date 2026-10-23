@@ -158,18 +158,36 @@ export class AiOrchestrator {
      Por favor indícame:
      - Tu nombre
      - Qué productos y cantidades necesitas
-     - Tu dirección de entrega y referencias (ej. entre qué calles, color de fachada o portón)."
+     - Tu dirección de entrega y referencias (ej. entre qué calles, color de fachada o portón)
+     - Si deseas agregar alguna nota o indicación para la entrega (opcional)."
 
-4. REGLAS DE SLOT-FILLING Y DATOS OBLIGATORIOS PARA NUEVOS PEDIDOS:
-   - Para poder registrar el pedido en el sistema, NECESITAS OBLIGATORIAMENTE:
-     1. Productos y cantidades válidas.
-     2. Dirección completa de entrega (calle, número) y referencias (fachada, calles aledañas).
-     3. Nombre del cliente (si no está registrado en su contexto).
+4. REGLAS DE SLOT-FILLING Y DESCOMPOSICIÓN INTELIGENTE DE ENTIDADES:
+   - DESCOMPOSICIÓN INTELIGENTE DE ENTIDADES (SEPARACIÓN ESTRICTA DE SLOTS):
+     Cuando el cliente proporcione sus datos (ya sea todo en un solo mensaje o en varios), debes analizar, interpretar y separar CADA componente en su campo correspondiente sin mezclar información:
+     * 'nombre': ÚNICAMENTE el nombre de la persona (ej. "Federico", "Mayra Gómez").
+     * 'direccion': ÚNICAMENTE la calle y número exterior/interior limpios (ej. "Calle Morelos 834", "Av. Juárez 102"). NUNCA mezcles entrecalles, fachadas ni instrucciones aquí.
+     * 'referencias': ÚNICAMENTE detalles físicos del inmueble para ubicarlo (ej. "entre Juárez e Independencia, casa con portón negro", "fachada blanca frente al parque").
+     * 'notas_generales': Instrucciones operativas para el chofer o la entrega (ej. "los garrafones están en la entrada", "dejar con el vecino", "tocar fuerte el portón", "pago con billete de 500").
+
+     EJEMPLO DE PARSEO Y DESCOMPOSICIÓN:
+     Si el cliente escribe: "calle morelos 834, entre juarez e independencia, casa con porton negro, los garrafones estan en la entrada, a nombre de Federico"
+     Debes descomponerlo y asignar:
+     - nombre: "Federico"
+     - direccion: "Calle Morelos 834"
+     - referencias: "entre Juárez e Independencia, casa con portón negro"
+     - notas_generales: "los garrafones están en la entrada"
+
+   - PREGUNTA POR NOTAS O COMENTARIOS:
+     Si el cliente ya te dio productos, cantidades, dirección y referencias pero NO ha indicado ninguna nota para el chofer:
+     Pregúntale: "¿Deseas agregar alguna nota o indicación para la entrega (ej. dónde dejar los garrafones)?"
+     Si el cliente ya proporcionó una indicación (como en el ejemplo de arriba) o si responde que no ("no", "así está bien", "ninguna"), procede de inmediato a confirmar y ejecutar 'crear_pedido'.
+
    - MANEJO INTELIGENTE DE DIRECCIONES:
      * Si el cliente acepta su dirección registrada, úsala.
      * Si el cliente proporciona o solicita una dirección diferente, adáptate de inmediato: solicita la nueva dirección si falta, o regístrala directamente en el parámetro 'direccion' de 'crear_pedido'. ¡NUNCA transfieras a un humano por un cambio de dirección!
-   - En cuanto tengas completos los productos, cantidades, dirección y referencias, ejecuta INMEDIATAMENTE la herramienta 'crear_pedido'.
-     REGLA CRUCIAL PARA 'crear_pedido': SIEMPRE debes extraer de la conversación los productos y cantidades acordadas y pasarlos en el parámetro 'items' (ej. items: [{ producto: "Garrafon normal", cantidad: 5 }]). SIEMPRE debes extraer el nombre del cliente que te haya proporcionado (ej. "Mayra", "Carlos") y pasarlo en el parámetro 'nombre'. NUNCA envíes 'items' vacío ni transfieras a un humano si ya tienes los datos para crear el pedido.
+   - En cuanto tengas completos los productos, cantidades, dirección y referencias (y nota si la dio o indicó que no):
+     Ejecuta INMEDIATAMENTE la herramienta 'crear_pedido'.
+     REGLA CRUCIAL PARA 'crear_pedido': SIEMPRE debes extraer de la conversación los productos y cantidades acordadas y pasarlos en el parámetro 'items' (ej. items: [{ producto: "Garrafon normal", cantidad: 5 }]). SIEMPRE debes extraer el nombre del cliente (ej. "Federico", "Mayra") y pasarlo en el parámetro 'nombre'. SIEMPRE debes pasar las notas operativas en 'notas_generales'. NUNCA envíes 'items' vacío ni transfieras a un humano si ya tienes los datos para crear el pedido.
 
 5. REGLAS ESTRICTAS DE FORMATO Y LIMPIEZA:
    - DIRECCIONES LIMPIAS: NUNCA coloques aclaraciones, comentarios, notas ni textos entre paréntesis en 'direccion' ni en tus mensajes (ej. NUNCA pongas "(Referencia proporcionada por el cliente)", "(Ubicación habitual)"). Coloca ÚNICAMENTE la calle, número y datos limpios.
@@ -423,6 +441,8 @@ export class AiOrchestrator {
             const itemsSummary = (detalle || []).map((it: any) => `- ${it.cantidad}x ${it.nombre_producto}`).join('\n');
             const totalCalc = (detalle || []).reduce((acc: number, it: any) => acc + (parseFloat(it.precio || 0) * parseInt(it.cantidad || 1)), 0);
             confirmation = `¡Listo! Tu pedido ha sido confirmado exitosamente y va en camino a tu domicilio.\n\nResumen de tu pedido:\n${itemsSummary}\nTotal: $${totalCalc.toFixed(2)}\nDirección: ${orderPayload.direccion || 'Domicilio registrado'}`;
+            if (orderPayload.referencias) confirmation += `\nReferencias: ${orderPayload.referencias}`;
+            if (orderPayload.notas) confirmation += `\nNota: ${orderPayload.notas}`;
           }
           await prisma.messageLog.create({
             data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: confirmation }
@@ -513,6 +533,7 @@ export class AiOrchestrator {
         codigo: aiResult.modifyData?.codigo_pedido || targetOrder?.codigo_rastreo,
         direccion: AiOrchestrator.sanitizeAddress(aiResult.modifyData?.direccion),
         referencias: AiOrchestrator.sanitizeAddress(aiResult.modifyData?.referencias),
+        notas: aiResult.modifyData?.notas_generales,
         detalle
       };
 
@@ -535,6 +556,8 @@ export class AiOrchestrator {
             } else {
               confirmation = modifyData.mensaje || '¡Listo! Tu pedido ha sido modificado exitosamente.';
             }
+            if (modifyPayload.referencias) confirmation += `\nReferencias: ${modifyPayload.referencias}`;
+            if (modifyPayload.notas) confirmation += `\nNota: ${modifyPayload.notas}`;
           }
           await prisma.messageLog.create({
             data: { conversationSessionId: session.id, senderType: 'BOT_AI', content: confirmation }

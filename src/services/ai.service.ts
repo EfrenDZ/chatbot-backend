@@ -85,7 +85,8 @@ export class AiService {
               notas: z.string().optional().describe('Detalles específicos de este ítem')
             })).optional().describe('Nuevos productos o cantidades del pedido si cambiaron'),
             direccion: z.string().optional().describe('Nueva dirección de entrega limpia si cambió. NUNCA agregues textos entre paréntesis'),
-            referencias: z.string().optional().describe('Nuevas referencias de ubicación')
+            referencias: z.string().optional().describe('Nuevas referencias de ubicación'),
+            notas_generales: z.string().optional().describe('Nuevas instrucciones o notas adicionales para la entrega si cambiaron')
           }),
         },
         cancelar_pedido: {
