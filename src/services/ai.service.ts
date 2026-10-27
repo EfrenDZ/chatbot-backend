@@ -73,7 +73,8 @@ export class AiService {
             direccion: z.string().optional().describe('Dirección de entrega limpia (calle y número). NUNCA agregues aclaraciones, notas ni textos entre paréntesis como "(referencia del cliente)"'),
             referencias: z.string().optional().describe('Referencias de ubicación (ej. color de fachada, entrecalles). NUNCA agregues textos entre paréntesis'),
             notas_generales: z.string().optional().describe('Instrucciones adicionales para la entrega'),
-            fecha_programada: z.string().optional().describe('Fecha en formato YYYY-MM-DD para la cual se programa la entrega si está fuera de horario, día de descanso, día festivo o por solicitud del cliente')
+            fecha_programada: z.string().optional().describe('Fecha en formato YYYY-MM-DD para la cual se programa la entrega si está fuera de horario, día de descanso, día festivo o por solicitud del cliente'),
+            programado_por_cliente: z.boolean().optional().describe('true ÚNICAMENTE si el cliente pidió expresamente agendar o programar el pedido para un día específico (ej. "para el viernes", "para mañana"). false si la fecha fue asignada automáticamente por horario de corte o día cerrado.')
           }),
         },
         modificar_pedido: {
@@ -88,7 +89,8 @@ export class AiService {
             direccion: z.string().optional().describe('Nueva dirección de entrega limpia si cambió. NUNCA agregues textos entre paréntesis'),
             referencias: z.string().optional().describe('Nuevas referencias de ubicación'),
             notas_generales: z.string().optional().describe('Nuevas instrucciones o notas adicionales para la entrega si cambiaron'),
-            fecha_programada: z.string().optional().describe('Nueva fecha de entrega en formato YYYY-MM-DD si se reprograma el pedido')
+            fecha_programada: z.string().optional().describe('Nueva fecha de entrega en formato YYYY-MM-DD si se reprograma el pedido'),
+            programado_por_cliente: z.boolean().optional().describe('true si el cliente solicitó programar la entrega para una fecha específica')
           }),
         },
         cancelar_pedido: {

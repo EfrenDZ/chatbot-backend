@@ -170,16 +170,23 @@ export class AiOrchestrator {
      Únicamente si el cliente NO tiene pedidos activos ni programados, continúa en ese mismo texto con la atención (ofreciendo lo de siempre con el formato estricto de la Regla 2 si es recurrente, o pidiendo datos si es nuevo).
      Al llamar a 'crear_pedido', OBLIGATORIAMENTE asigna 'fecha_programada' con "${sessionMetadata?.fecha_programada_sugerida || sessionMetadata?.proximo_dia_habil?.fecha || 'YYYY-MM-DD'}".
 
-   - Si el estado es 'ABIERTO': Horario habitual de reparto hoy. La entrega se realiza hoy mismo en horario normal. No es necesario dar avisos de horario salvo que el cliente solicite expresamente programar para un día futuro.
-   - Si el cliente solicita expresamente programar su entrega para un día específico (ej. "para el viernes", "para mañana"), respeta su solicitud y asigna 'fecha_programada' con esa fecha en formato YYYY-MM-DD.
-   - Si un pedido queda programado para otra fecha o antes de apertura, NUNCA digas que "va en camino a tu domicilio"; la confirmación debe indicar claramente que "ha sido confirmado y quedó programado para entrega el [fecha]".
+   - Si el estado es 'ABIERTO': Horario habitual de reparto hoy. La entrega se realiza hoy mismo en horario normal.
+     ¡EL BOT SIEMPRE ASUMIRÁ QUE EL PEDIDO ES PARA ENTREGA HOY!
+     ¡ESTÁ TERMINANTEMENTE PROHIBIDO PREGUNTAR AL CLIENTE SI DESEA PROGRAMAR SU PEDIDO! No preguntes "¿Deseas programarlo?".
+   - ÚNICAMENTE si el cliente SOLICITA EXPRESAMENTE programar su entrega para un día específico (ej. "lo quiero para el viernes", "para mañana", "agéndalo para el sábado"):
+     Respeta su solicitud, asigna 'fecha_programada' con esa fecha (YYYY-MM-DD) y asigna 'programado_por_cliente: true'.
+   - Si el pedido se programó automáticamente por estar el negocio CERRADO, DESPUES_CIERRE, FESTIVO o ANTES_APERTURA:
+     Asigna 'fecha_programada' con la fecha sugerida y asigna 'programado_por_cliente: false'.
+   - FORMATO DE FECHA EN MENSAJES (OBLIGATORIO):
+     Al mencionar cualquier fecha de entrega al cliente, exprésala SIEMPRE en formato natural legible en español con el día de la semana y el mes (ej. "sábado 24 de octubre", "lunes 26 de octubre"), NUNCA en formato numérico YYYY-MM-DD (como 2026-10-24).
+   - Si un pedido queda programado para otra fecha o antes de apertura, NUNCA digas que "va en camino a tu domicilio"; la confirmación debe indicar claramente que "ha sido confirmado y quedó programado para entrega el [día y fecha legible]".
 
 1. CLIENTE CON PEDIDO ACTIVO O PROGRAMADO EN CURSO (PRIORIDAD MÁXIMA ABSOLUTA):
    - APLICA OBLIGATORIAMENTE SI el cliente tiene pedidos listados en "PEDIDOS ACTIVOS O PROGRAMADOS DEL CLIENTE":
      ¡ESTÁ TOTALMENTE PROHIBIDO ofrecer repetir "lo de siempre", ofrecer crear un nuevo pedido o pedir datos de compra a un cliente que ya tiene un pedido activo o programado!
      * En el saludo o primer mensaje:
        - Si el pedido está PROGRAMADO PARA UNA FECHA FUTURA (tiene fecha programada):
-         "¡Hola [Nombre]! 👋 Tienes el pedido #[ID] por [resumen_productos / total] programado para entrega el [fecha_programada] a tu dirección en [Dirección]. ¿Deseas modificar algún dato (productos, fecha o dirección), cancelarlo o en qué te puedo ayudar?"
+         "¡Hola [Nombre]! 👋 Tienes el pedido #[ID] por [resumen_productos / total] programado para entrega el [día y fecha legible] a tu dirección en [Dirección]. ¿Deseas modificar algún dato (productos, fecha o dirección), cancelarlo o en qué te puedo ayudar?"
        - Si el pedido ya tiene repartidor asignado / va en camino hoy:
          "¡Hola [Nombre]! 👋 Tu pedido activo #[ID] por [resumen_productos / total] ya fue asignado a un repartidor y va en camino a tu dirección en [Dirección]. ¿Deseas modificar algún dato, cancelarlo o en qué te puedo ayudar?"
        - Si el pedido está pendiente de entrega hoy:
@@ -187,12 +194,12 @@ export class AiOrchestrator {
 
      * PREGUNTAS DEL CLIENTE SOBRE SU PEDIDO (ej. "¿No tengo un pedido en curso?", "¿Tengo pedido activo?", "¿Qué pasó con mi pedido?"):
        ¡JAMÁS le digas que no tiene un pedido! Si aparece en "PEDIDOS ACTIVOS O PROGRAMADOS DEL CLIENTE", responde de inmediato con seguridad confirmando su pedido:
-       "Sí, tienes el pedido #[ID] ([resumen_productos], total $[Total]) programado para entrega el [fecha_programada] / registrado a tu dirección en [Dirección]. ¿Deseas modificarlo, cancelarlo o en qué te puedo apoyar?"
+       "Sí, tienes el pedido #[ID] ([resumen_productos], total $[Total]) programado para entrega el [día y fecha legible] / registrado a tu dirección en [Dirección]. ¿Deseas modificarlo, cancelarlo o en qué te puedo apoyar?"
 
-     * Si el cliente solicita modificar o cambiar algo (ej. "quiero editarlo", "cambiar dirección", "cambiar garrafones", "cambiar fecha"):
+     * Si el cliente solicita modificar o cambiar algo (ej. "quiero editarlo", "cambiar dirección", "cambiar garrafones", "cambiar fecha", "agregar otro producto"):
        ¡ESTÁ TOTALMENTE PROHIBIDO LLAMAR A 'modificar_pedido' SIN LOS DATOS! Pregúntale amablemente qué desea cambiar:
        * Dirección: "¡Con gusto! ¿A qué nueva dirección completa deseas enviarlo?"
-       * Productos: ¡ENVÍA DE INMEDIATO LA LISTA DE PRODUCTOS DISPONIBLES EN VIÑETAS CON PRECIOS! NUNCA preguntes a ciegas sin mostrar el catálogo para evitar que el cliente deba preguntar qué productos venden.
+       * Productos / Agregar productos: ¡ENVÍA DE INMEDIATO LA LISTA DE PRODUCTOS DISPONIBLES EN VIÑETAS CON PRECIOS! NUNCA preguntes a ciegas sin mostrar el catálogo para evitar que el cliente deba preguntar qué productos venden.
          Ejemplo:
          "¡Claro! Te comparto los productos disponibles:
          • Garrafon normal: $24
@@ -200,10 +207,16 @@ export class AiOrchestrator {
          • Garrafon epura: $24
          • Galon normal: $13
          • Litro: $10
-         ¿Qué productos y cantidades te gustaría ordenar?"
+         ¿Qué productos y cantidades te gustaría ordenar o agregar?"
        * Fecha: "¡Claro! ¿Para qué fecha deseas programar tu entrega?"
-       SOLO cuando el cliente te responda con los nuevos datos (dirección, productos o fecha):
-       EJECUTA la herramienta 'modificar_pedido' con los nuevos datos. El pedido pasará a revisión del administrador para su validación.
+
+       ¡REGLA DE ACCIÓN INMEDIATA TRAS LA RESPUESTA DEL CLIENTE!:
+       En cuanto el cliente te responda con los productos o cantidades (ej. "3 cieles", "2 garrafones normales"), la nueva dirección o la nueva fecha:
+       ¡EJECUTA INMEDIATAMENTE la herramienta 'modificar_pedido' con dichos datos en el parámetro 'items'!
+       - Si el cliente tenía productos previos y pidió "agregar" productos, incluye todos los productos resultantes en 'items' (ej. items: [{ producto: "Agua Cero 500ml", cantidad: 25 }, { producto: "Ciel", cantidad: 3 }]).
+       - ¡ESTÁ ESTRICTAMENTE PROHIBIDO volver a preguntarle al cliente qué desea cambiar si ya te dijo qué productos quiere!
+       - ¡ESTÁ ESTRICTAMENTE PROHIBIDO llamar a 'modificar_pedido' con 'items' vacío si el cliente ya indicó productos y cantidades!
+       El pedido pasará a revisión del administrador para su validación.
        ¡ESTÁ ESTRICTAMENTE PROHIBIDO usar 'crear_pedido' para un cliente que ya tiene un pedido activo o programado que desea cambiar!
 
      * Si el cliente solicita cancelarlo:
@@ -342,6 +355,21 @@ export class AiOrchestrator {
       .replace(/\s*\([^)]*(?:referencia|cliente|proporcionad|nota|aclaraci|habitual|ubicaci)[^)]*\)/gi, '')
       .replace(/\s*\(\s*\)/g, '')
       .trim();
+  }
+
+  private static formatFechaLegible(fechaIso?: string): string {
+    if (!fechaIso || typeof fechaIso !== 'string') return fechaIso || '';
+    const parts = fechaIso.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day, 12, 0, 0);
+      const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+      const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+      return `${dias[d.getDay()]} ${day} de ${meses[d.getMonth()]}`;
+    }
+    return fechaIso;
   }
 
   private static normalizeStr(str: string): string {
@@ -556,6 +584,7 @@ export class AiOrchestrator {
       const cleanNotas = aiResult.orderData?.notas_generales?.trim();
       const isNotasEmpty = !cleanNotas || /^(ninguna|sin notas?|n\/a|no|as[ií] est[aá] bien|pedido v[ií]a whatsapp bot)$/i.test(cleanNotas);
 
+      const isClientScheduled = Boolean(aiResult.orderData?.programado_por_cliente);
       const orderPayload = {
         telefono: session.contactIdentifier,
         nombre: rawNombre || 'Cliente WhatsApp',
@@ -563,6 +592,7 @@ export class AiOrchestrator {
         referencias: isRefEmpty ? undefined : cleanRef,
         notas: isNotasEmpty ? undefined : cleanNotas,
         fecha_programada: scheduledDate,
+        programado_por_cliente: isClientScheduled,
         detalle
       };
 
@@ -579,7 +609,7 @@ export class AiOrchestrator {
             const itemsSummary = (detalle || []).map((it: any) => `- ${it.cantidad}x ${it.nombre_producto}`).join('\n');
             const totalCalc = (detalle || []).reduce((acc: number, it: any) => acc + (parseFloat(it.precio || 0) * parseInt(it.cantidad || 1)), 0);
             if (scheduledDate) {
-              confirmation = `¡Listo! Tu pedido ha sido confirmado y quedó programado para entrega el ${scheduledDate}.\n\nResumen de tu pedido:\n${itemsSummary}\nTotal: $${totalCalc.toFixed(2)}\nDirección: ${orderPayload.direccion || 'Domicilio registrado'}`;
+              confirmation = `¡Listo! Tu pedido ha sido confirmado y quedó programado para entrega el ${AiOrchestrator.formatFechaLegible(scheduledDate)}.\n\nResumen de tu pedido:\n${itemsSummary}\nTotal: $${totalCalc.toFixed(2)}\nDirección: ${orderPayload.direccion || 'Domicilio registrado'}`;
             } else {
               confirmation = `¡Listo! Tu pedido ha sido confirmado exitosamente y va en camino a tu domicilio.\n\nResumen de tu pedido:\n${itemsSummary}\nTotal: $${totalCalc.toFixed(2)}\nDirección: ${orderPayload.direccion || 'Domicilio registrado'}`;
             }
@@ -626,11 +656,48 @@ export class AiOrchestrator {
     if (aiResult.isOrderModified && config.apiBaseUrl) {
       console.log(`[BotEngine] IA ejecutó modificar_pedido en sesión ${session.id}`, aiResult.modifyData);
 
-      const hasNewAddress = Boolean(aiResult.modifyData?.direccion && aiResult.modifyData.direccion.trim().length > 0);
-      const hasNewItems = Boolean(aiResult.modifyData?.items && Array.isArray(aiResult.modifyData.items) && aiResult.modifyData.items.length > 0);
+      const dynamicCat = metadata.catalogo;
+      const catalog = (dynamicCat && Array.isArray(dynamicCat) && dynamicCat.length > 0)
+        ? dynamicCat.map((c: any) => ({ id: c.id, name: c.nombre || c.name, price: c.precio ?? c.price }))
+        : ((config.aiKnowledge as any)?.catalog || []);
 
-      // GUARDRAIL 1: Si no vienen nuevos productos ni nueva dirección, no ejecutamos a ciegas
-      if (!hasNewAddress && !hasNewItems) {
+      const targetOrder = metadata.pedidos_activos?.[0];
+
+      let items = aiResult.modifyData?.items;
+      let hasNewAddress = Boolean(aiResult.modifyData?.direccion && aiResult.modifyData.direccion.trim().length > 0);
+      let hasNewDate = Boolean(aiResult.modifyData?.fecha_programada && aiResult.modifyData.fecha_programada.trim().length > 0);
+      let hasNewItems = Boolean(items && Array.isArray(items) && items.length > 0);
+
+      // Fallback: Si la IA llamó a modificar_pedido pero no estructuró items, buscar en los mensajes recientes del usuario
+      if (!hasNewItems && !hasNewAddress && !hasNewDate) {
+        for (let i = history.length - 1; i >= 0; i--) {
+          const hMsg = history[i];
+          if (hMsg.role === 'user') {
+            const match = (hMsg.content || '').match(/(\d+)\s*([a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+)/i);
+            if (match) {
+              const qty = parseInt(match[1], 10);
+              const prodCandidate = match[2].trim();
+              const matched = AiOrchestrator.findCatalogMatch(prodCandidate, catalog);
+              if (matched) {
+                const existingItems = targetOrder?.detalles || [];
+                const mergedMap = new Map<number, { producto: string; cantidad: number }>();
+                for (const ex of existingItems) {
+                  const pId = ex.producto_id;
+                  const pName = ex.nombre_producto || ex.producto_nombre;
+                  if (pId) mergedMap.set(pId, { producto: pName, cantidad: ex.cantidad });
+                }
+                mergedMap.set(matched.id, { producto: matched.name, cantidad: qty });
+                items = Array.from(mergedMap.values());
+                hasNewItems = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // GUARDRAIL 1: Si no vienen nuevos productos, ni nueva dirección, ni nueva fecha
+      if (!hasNewAddress && !hasNewItems && !hasNewDate) {
         console.warn(`[BotEngine] modificar_pedido invocado sin datos en sesión ${session.id}. Solicitando datos al cliente.`);
         const askMsg = aiResult.text.trim().length > 0
           ? aiResult.text
@@ -652,16 +719,7 @@ export class AiOrchestrator {
         return;
       }
 
-      const targetOrder = metadata.pedidos_activos?.[0];
-
-      const dynamicCat = metadata.catalogo;
-      const catalog = (dynamicCat && Array.isArray(dynamicCat) && dynamicCat.length > 0)
-        ? dynamicCat.map((c: any) => ({ id: c.id, name: c.nombre || c.name, price: c.precio ?? c.price }))
-        : ((config.aiKnowledge as any)?.catalog || []);
-
-      const items = aiResult.modifyData?.items;
       let detalle = undefined;
-
       if (items && Array.isArray(items) && items.length > 0) {
         detalle = items.map((it: any) => {
           const matched = AiOrchestrator.findCatalogMatch(it.producto, catalog);
@@ -689,6 +747,7 @@ export class AiOrchestrator {
       const cleanModNotas = aiResult.modifyData?.notas_generales?.trim();
       const isModNotasEmpty = !cleanModNotas || /^(ninguna|sin notas?|n\/a|no|as[ií] est[aá] bien)$/i.test(cleanModNotas);
 
+      const isModClientScheduled = Boolean(aiResult.modifyData?.programado_por_cliente);
       const modifyPayload = {
         telefono: session.contactIdentifier,
         codigo: aiResult.modifyData?.codigo_pedido || targetOrder?.codigo_rastreo,
@@ -696,6 +755,7 @@ export class AiOrchestrator {
         referencias: isModRefEmpty ? undefined : cleanModRef,
         notas: isModNotasEmpty ? undefined : cleanModNotas,
         fecha_programada: aiResult.modifyData?.fecha_programada || undefined,
+        programado_por_cliente: isModClientScheduled,
         detalle
       };
 
@@ -717,6 +777,9 @@ export class AiOrchestrator {
               confirmation = `¡Listo! La dirección de tu pedido ha sido actualizada a: ${modifyPayload.direccion}.`;
             } else {
               confirmation = modifyData.mensaje || '¡Listo! Tu pedido ha sido modificado exitosamente.';
+            }
+            if (modifyPayload.fecha_programada) {
+              confirmation += `\nFecha programada: ${AiOrchestrator.formatFechaLegible(modifyPayload.fecha_programada)}`;
             }
             if (modifyPayload.referencias) confirmation += `\nReferencias: ${modifyPayload.referencias}`;
             if (modifyPayload.notas) confirmation += `\nNota: ${modifyPayload.notas}`;
